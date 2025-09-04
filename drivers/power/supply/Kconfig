@@ -58,18 +58,6 @@ config MAX8925_POWER
 	  Say Y here to enable support for the battery charger in the Maxim
 	  MAX8925 PMIC.
 
-config GET_HW_VERSION
-    tristate "CONFIG GET HW VERSION"
-    default n
-    help
-      Say Y to enable get hw version
-      
-config DISABLE_NTC
-	tristate "CONFIG_DISABLE_NTC"
-	default n
-	help
-	  Say Y to fix battery temperature to 25.
-
 config WM831X_BACKUP
 	tristate "WM831X backup battery charger support"
 	depends on MFD_WM831X
@@ -708,7 +696,7 @@ config CHARGER_FAN54015
 	  Say Y to include support for Fairchild FAN54015 Battery Charger.
 
 config CHARGER_SGM41512
-	tristate "Fairchild SGM41512 Charger"
+	tristate "SGM41512 Charger"
 	depends on I2C || COMPILE_TEST
 	help
 	  Say Y to include support for Fairchild SGM41512 Battery Charger.
@@ -731,18 +719,6 @@ config CHARGER_BQ2597X
 	help
 	  Say Y to include support for TI BQ2597X Charger.
 
-config CHARGER_SC8551
-	tristate "SC8551 Charger"
-	depends on I2C || COMPILE_TEST
-	help
-	  Say Y to include support for SC8551 Battery Charger.
-
-config CHARGER_UPM6710
-	tristate "UPM6710 Charger"
-	depends on I2C || COMPILE_TEST
-	help
-	  Say Y to include support for UPM6710 Battery Charger.
-
 config CHARGER_BQ25910
 	tristate "TI BQ25910 Charger"
 	depends on I2C || COMPILE_TEST
@@ -763,12 +739,6 @@ config CHARGER_SC2721
 	 Say Y here to enable support for battery charging with SC2721
 	 PMIC chips.
 
-config CHARGER_SGM41511
-	tristate "SGM sgm41511 Charger"
-	depends on I2C || COMPILE_TEST
-	help
-	  Say Y to include support for SGM Sgm41511 Battery Charger.
-
 config FUEL_GAUGE_SC27XX
 	tristate "Spreadtrum SC27XX fuel gauge driver"
 	depends on MFD_SC27XX_PMIC || MFD_UMP96XX_PMIC || COMPILE_TEST
@@ -777,11 +747,11 @@ config FUEL_GAUGE_SC27XX
 	 Say Y here to enable support for fuel gauge with SC27XX
 	 PMIC chips.
 
-config FAST_CHARGER_SC27XX
-	tristate "Spreadtrum SC27XX fast charger driver"
+config FAST_CHARGER_SC2730
+	tristate "Spreadtrum SC2730 fast charger driver"
 	depends on MFD_SC27XX_PMIC || MFD_UMP96XX_PMIC || COMPILE_TEST
 	help
-	  Say Y here to enable support for fast charging with SC27XX
+	  Say Y here to enable support for fast charging with SC2730
 	  PMIC chips.
 
 config CHARGER_UCS1002
@@ -812,6 +782,18 @@ config CHARGER_WILCO
 	  information can be found in
 	  Documentation/ABI/testing/sysfs-class-power-wilco
 
+config GET_HW_VERSION
+    tristate "CONFIG GET HW VERSION"
+    default n
+    help
+      Say Y to enable get hw version 
+
+config DISABLE_NTC
+	tristate "CONFIG_DISABLE_NTC"
+	default n
+	help
+	  Say Y to fix battery temperature to 25.
+		 
 config WIRELESS_CHARGER_NU1619
 	tristate "NU1619 Wireless Charger"
 	depends on I2C || COMPILE_TEST

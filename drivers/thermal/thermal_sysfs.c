@@ -348,41 +348,6 @@ sustainable_power_store(struct device *dev, struct device_attribute *devattr,
 	return count;
 }
 
-#ifdef CONFIG_SPRD_THERMAL_POLICY
-static ssize_t
-user_power_range_store(struct device *dev, struct device_attribute *attr,
-			const char *buf, size_t count)
-{
-	struct thermal_zone_device *tz = to_thermal_zone(dev);
-	u32 user_power_range_value;
-
-	if (kstrtou32(buf, 10, &user_power_range_value) ||
-		strcmp(tz->type, "soc-thmzone"))
-		return -EINVAL;
-
-	user_power_range = user_power_range_value;
-
-	thermal_zone_device_update(tz, THERMAL_EVENT_UNSPECIFIED);
-
-	return count;
-}
-
-static ssize_t
-user_power_range_show(struct device *dev, struct device_attribute *attr,
-			char *buf)
-{
-	struct thermal_zone_device *tz = to_thermal_zone(dev);
-
-	if (!strcmp(tz->type, "soc-thmzone"))
-		return sprintf(buf, "%d\n", user_power_range);
-	else
-		return -EINVAL;
-}
-
-static DEVICE_ATTR(user_power_range, 0644, user_power_range_show,
-			user_power_range_store);
-#endif
-
 #define create_s32_tzp_attr(name)					\
 	static ssize_t							\
 	name##_show(struct device *dev, struct device_attribute *devattr, \
@@ -461,10 +426,6 @@ static struct attribute *thermal_zone_dev_attrs[] = {
 	&dev_attr_offset.attr,
 #ifdef CONFIG_SPRD_THERMAL_DEBUG
 	&dev_attr_thm_enable.attr,
-#endif
-
-#ifdef CONFIG_SPRD_THERMAL_POLICY
-	&dev_attr_user_power_range.attr,
 #endif
 	NULL,
 };
@@ -954,13 +915,12 @@ static const struct attribute_group cooling_device_stats_attr_group = {
 
 static void cooling_device_stats_setup(struct thermal_cooling_device *cdev)
 {
-	const struct attribute_group *stats_attr_group = NULL;
 	struct cooling_dev_stats *stats;
 	unsigned long states;
 	int var;
 
 	if (cdev->ops->get_max_state(cdev, &states))
-		goto out;
+		return;
 
 	states++; /* Total number of states is highest state + 1 */
 
@@ -970,7 +930,7 @@ static void cooling_device_stats_setup(struct thermal_cooling_device *cdev)
 
 	stats = kzalloc(var, GFP_KERNEL);
 	if (!stats)
-		goto out;
+		return;
 
 	stats->time_in_state = (ktime_t *)(stats + 1);
 	stats->trans_table = (unsigned int *)(stats->time_in_state + states);
@@ -980,12 +940,9 @@ static void cooling_device_stats_setup(struct thermal_cooling_device *cdev)
 
 	spin_lock_init(&stats->lock);
 
-	stats_attr_group = &cooling_device_stats_attr_group;
-
-out:
 	/* Fill the empty slot left in cooling_device_attr_groups */
 	var = ARRAY_SIZE(cooling_device_attr_groups) - 2;
-	cooling_device_attr_groups[var] = stats_attr_group;
+	cooling_device_attr_groups[var] = &cooling_device_stats_attr_group;
 }
 
 static void cooling_device_stats_destroy(struct thermal_cooling_device *cdev)

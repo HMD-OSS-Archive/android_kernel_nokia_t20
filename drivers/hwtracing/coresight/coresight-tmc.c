@@ -36,7 +36,8 @@ void tmc_wait_for_tmcready(struct tmc_drvdata *drvdata)
 	/* Ensure formatter, unformatter and hardware fifo are empty */
 	if (coresight_timeout(drvdata->base,
 			      TMC_STS, TMC_STS_TMCREADY_BIT, 1)) {
-		pr_err("timeout while waiting for TMC to be Ready\n");
+		dev_err(&drvdata->csdev->dev,
+			"timeout while waiting for TMC to be Ready\n");
 	}
 }
 
@@ -52,7 +53,8 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 	/* Ensure flush completes */
 	if (coresight_timeout(drvdata->base,
 			      TMC_FFCR, TMC_FFCR_FLUSHMAN_BIT, 0)) {
-		pr_err("timeout while waiting for completion of Manual Flush\n");
+		dev_err(&drvdata->csdev->dev,
+		"timeout while waiting for completion of Manual Flush\n");
 	}
 
 	tmc_wait_for_tmcready(drvdata);
@@ -561,13 +563,10 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 		goto out;
 	}
 
-#ifndef CONFIG_CORESIGHT_TMC_GROUP
 	/* fix etb dev name as "/dev/tmc_etb" for modem */
 	if (strnstr(tmc_name, "etb", strlen(tmc_name))) {
 		drvdata->miscdev.name = "tmc_etb";
-	} else
-#endif
-	{
+	} else {
 		snprintf(drvdata->etf_name, sizeof(drvdata->etf_name), "etf-%8lx",
 			(unsigned long)res->start);
 		drvdata->miscdev.name = drvdata->etf_name;

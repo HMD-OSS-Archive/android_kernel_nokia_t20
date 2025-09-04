@@ -19,7 +19,6 @@
 #include "../governor.h"
 
 #include "sprd_dvfs_gsp.h"
-#include "sys/apsys_dvfs_qogirn6pro.h"
 
 static int GSP_DVFS_ENABLE = 1;
 
@@ -50,11 +49,6 @@ static ssize_t gsp_dvfs_enable_store(struct device *dev,
 	struct devfreq *devfreq = to_devfreq(dev);
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	int ret, user_en;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%d\n", &user_en);
 	if (ret == 0)
@@ -91,17 +85,12 @@ static ssize_t set_hw_dfs_store(struct device *dev,
 	u32 dfs_en;
 	int ret;
 
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
-
 	ret = sscanf(buf, "%d\n", &dfs_en);
 	if (ret == 0)
 		return -EINVAL;
 
 	if (gsp->dvfs_ops && gsp->dvfs_ops->hw_dfs_en) {
-		gsp->dvfs_ops->hw_dfs_en(gsp, dfs_en);
+		gsp->dvfs_ops->hw_dfs_en(dfs_en);
 		gsp->dvfs_coffe.hw_dfs_en = dfs_en;
 	} else
 		pr_info("%s: ip ops null\n", __func__);
@@ -116,11 +105,6 @@ static ssize_t get_work_freq_show(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 work_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	if (gsp->dvfs_ops && gsp->dvfs_ops->get_work_freq) {
 		work_freq = gsp->dvfs_ops->get_work_freq(gsp);
@@ -139,11 +123,6 @@ static ssize_t set_work_freq_store(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 
@@ -172,11 +151,6 @@ static ssize_t get_idle_freq_show(struct device *dev,
 	u32 idle_freq;
 	int ret;
 
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (gsp->dvfs_ops && gsp->dvfs_ops->get_idle_freq) {
 		idle_freq = gsp->dvfs_ops->get_idle_freq(gsp);
 		ret = sprintf(buf, "%d\n", idle_freq);
@@ -194,11 +168,6 @@ static ssize_t set_idle_freq_store(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 
@@ -226,11 +195,6 @@ static ssize_t get_work_index_show(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	int work_index, ret;
 
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (gsp->dvfs_ops && gsp->dvfs_ops->get_work_index) {
 		work_index = gsp->dvfs_ops->get_work_index(gsp);
 		ret = sprintf(buf, "%d\n", work_index);
@@ -247,11 +211,6 @@ static ssize_t set_work_index_store(struct device *dev,
 	struct devfreq *devfreq = to_devfreq(dev);
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	int work_index, ret;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%d\n", &work_index);
 	if (ret == 0)
@@ -272,11 +231,6 @@ static ssize_t get_idle_index_show(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	int idle_index, ret;
 
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (gsp->dvfs_ops && gsp->dvfs_ops->get_idle_index) {
 		idle_index = gsp->dvfs_ops->get_idle_index(gsp);
 		ret = sprintf(buf, "%d\n", idle_index);
@@ -293,11 +247,6 @@ static ssize_t set_idle_index_store(struct device *dev,
 	struct devfreq *devfreq = to_devfreq(dev);
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	int idle_index, ret;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%d\n", &idle_index);
 	if (ret == 0)
@@ -318,11 +267,6 @@ static ssize_t get_dvfs_status_show(struct device *dev,
 	struct gsp_dvfs *gsp = dev_get_drvdata(devfreq->dev.parent);
 	struct ip_dvfs_status dvfs_status;
 	ssize_t len = 0;
-
-	if (!get_display_power_status()) {
-		pr_err("gsp is stopped, reject get gsp dvfs status\n");
-		return -EINVAL;
-	}
 
 	if (gsp->dvfs_ops && gsp->dvfs_ops->get_dvfs_status)
 		gsp->dvfs_ops->get_dvfs_status(gsp, &dvfs_status);
@@ -413,12 +357,7 @@ static int gsp_dvfs_notify_callback(struct notifier_block *nb,
 	struct gsp_dvfs *gsp = container_of(nb, struct gsp_dvfs, gsp_dvfs_nb);
 	u32 freq = *(int *)data;
 
-	if (dpu_vsp_dvfs_check_clkeb()) {
-		pr_info("%s(), dpu_vsp eb is not on\n", __func__);
-		return NOTIFY_DONE;
-	}
-
-	if (!gsp->dvfs_enable)
+	if (!gsp->dvfs_enable || gsp->work_freq == freq)
 		return NOTIFY_DONE;
 
 	if (gsp->dvfs_ops && gsp->dvfs_ops->set_work_freq) {
@@ -460,7 +399,7 @@ static int gsp_dvfs_target(struct device *dev, unsigned long *freq,
 		}
 	} else {
 		if (gsp->dvfs_ops && gsp->dvfs_ops->set_idle_freq) {
-			gsp->dvfs_ops->set_idle_freq(gsp, target_freq);
+			gsp->dvfs_ops->set_idle_freq(target_freq);
 			pr_debug("set idle freq = %u\n", target_freq);
 		}
 	}
@@ -705,13 +644,13 @@ static int gsp_dvfs_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct sprd_gsp_dvfs_ops qogirn6pro_gsp_dvfs = {
+static const struct sprd_gsp_dvfs_ops qogirn6pro_gsp_dvfs_ops = {
 	.dvfs_ops = &qogirn6pro_gsp_dvfs_ops,
 };
 
 static const struct of_device_id gsp_dvfs_of_match[] = {
 	{ .compatible = "sprd,hwdvfs-gsp-qogirn6pro",
-	  .data = &qogirn6pro_gsp_dvfs },
+	  .data = &qogirn6pro_gsp_dvfs_ops },
 	{ }
 };
 

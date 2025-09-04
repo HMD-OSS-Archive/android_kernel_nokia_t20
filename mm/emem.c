@@ -54,9 +54,9 @@
 
 /*
  * The written value is the killed process adj, then trigger to show enhance
- * memory information. it's written to /proc/emem_trigger
+ * memory information. it's written to /proc/sys/vm/emem_trigger
  */
-static int sysctl_emem_trigger;
+int sysctl_emem_trigger;
 
 static struct work_struct emem_work;
 static DEFINE_SPINLOCK(emem_lock);
@@ -113,7 +113,7 @@ static void enhance_meminfo(u64 interval)
 	if (val.tv_sec - last_time > interval) {
 		pr_info("++++++++++++++++++++++E_SHOW_MEM_BEGIN++++++++++++++++++++\n");
 		pr_info("The killed process adj = %d\n", sysctl_emem_trigger);
-		enhanced_show_mem();
+		enhanced_show_mem(E_SHOW_MEM_ALL);
 		last_time = val.tv_sec;
 		pr_info("+++++++++++++++++++++++E_SHOW_MEM_END+++++++++++++++++++++\n");
 	}
@@ -136,15 +136,34 @@ static void emem_workfn(struct work_struct *work)
 	}
 }
 
+int sysctl_emem_trigger_handler(struct ctl_table *table, int write,
+			void __user *buffer, size_t *length, loff_t *ppos)
+{
+	int ret;
+
+	ret = proc_dointvec_minmax(table, write, buffer, length, ppos);
+	if (ret || !write)
+		return -1;
+
+	if (sysctl_emem_trigger <= DEFAULT_PROC_ADJ) {
+		spin_lock(&emem_lock);
+		queue_work(system_power_efficient_wq, &emem_work);
+		spin_unlock(&emem_lock);
+	}
+	return 0;
+}
+
 static int tasks_e_show_mem_handler(struct notifier_block *nb,
 			unsigned long val, void *data)
 {
+	enum e_show_mem_type type = val;
 	struct sysinfo si;
 
 	si_swapinfo(&si);
 	pr_info("Enhanced Mem-info :TASK\n");
 	pr_info("Detail:\n");
-	dump_tasks_info();
+	if (E_SHOW_MEM_CLASSIC == type || E_SHOW_MEM_ALL == type)
+		dump_tasks_info();
 	pr_info("Total used:\n");
 	pr_info("     anon: %lu kB\n", ((global_node_page_state(NR_ACTIVE_ANON)
 		     + global_node_page_state(NR_INACTIVE_ANON)) << PAGE_SHIFT)

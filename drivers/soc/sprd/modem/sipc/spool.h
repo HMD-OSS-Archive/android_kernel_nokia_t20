@@ -21,9 +21,6 @@ struct spool_init_data {
 	u8	nodev;
 	/* Preconfigured channel */
 	int	pre_cfg;
-	u8	smem;
-	/* support for log loop */
-	u8	sblock_loop;
 	u32	txblocknum;
 	u32	txblocksize;
 	u32	rxblocknum;

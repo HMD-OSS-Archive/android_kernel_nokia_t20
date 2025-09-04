@@ -574,7 +574,9 @@ ssize_t vfs_write(struct file *file, const char __user *buf, size_t count, loff_
 #endif
 	return ret;
 }
-
+#ifdef CONFIG_RDD_DEBUG
+EXPORT_SYMBOL(vfs_write);
+#endif
 /* file_ppos returns &file->f_pos or NULL if file is stream */
 static inline loff_t *file_ppos(struct file *file)
 {

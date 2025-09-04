@@ -21,7 +21,6 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/wait.h>
-#include <linux/vmalloc.h>
 
 #define GNSS_RING_R			0
 #define GNSS_RING_W			1
@@ -108,18 +107,18 @@ static void gnss_ring_destroy(struct gnss_ring_t *pring)
 	if (pring) {
 		if (pring->pbuff) {
 			pr_debug("%s free pbuff\n", __func__);
-			vfree(pring->pbuff);
+			kfree(pring->pbuff);
 			pring->pbuff = NULL;
 		}
 
 		if (pring->plock) {
 			pr_debug("%s free plock\n", __func__);
 			mutex_destroy(pring->plock);
-			vfree(pring->plock);
+			kfree(pring->plock);
 			pring->plock = NULL;
 		}
 		pr_debug("%s free pring\n", __func__);
-		vfree(pring);
+		kfree(pring);
 		pring = NULL;
 	}
 }
@@ -136,17 +135,17 @@ static struct gnss_ring_t *gnss_ring_init(unsigned long size,
 	}
 
 	do {
-		pring = vmalloc(sizeof(struct gnss_ring_t));
+		pring = kmalloc(sizeof(struct gnss_ring_t), GFP_KERNEL);
 		if (!pring) {
 			pr_err("Ring malloc Failed\n");
 			break;
 		}
-		pring->pbuff = vmalloc(size);
+		pring->pbuff = kmalloc(size, GFP_KERNEL);
 		if (!pring->pbuff) {
 			pr_err("Ring buff malloc Failed\n");
 			break;
 		}
-		pring->plock = vmalloc(sizeof(struct mutex));
+		pring->plock = kmalloc(sizeof(struct mutex), GFP_KERNEL);
 		if (!pring->plock) {
 			pr_err("Ring lock malloc Failed\n");
 			break;
@@ -276,8 +275,7 @@ static int gnss_memcpy_rd(char *dest, char *src, size_t count)
 
 static int gnss_memcpy_wr(char *dest, char *src, size_t count)
 {
-	memcpy(dest, src, count);
-	return 0;
+	return copy_from_user(dest, src, count);
 }
 
 static int gnss_device_init(void)
@@ -326,9 +324,22 @@ static ssize_t wcn_gnss_dump_read(struct file *filp,
 	return len;
 }
 
+static ssize_t wcn_gnss_dump_write(struct file *filp, const char __user *buf,
+			      size_t count, loff_t *pos)
+{
+	ssize_t len = 0;
+
+	len = gnss_ring_write(gnss_rx_ring, (char *)buf, count);
+	if (len > 0)
+		wake_up_interruptible(&gnss_dev->rxwait);
+
+	return len;
+}
+
 static const struct file_operations wcn_gnss_dump_fops = {
 	.owner = THIS_MODULE,
 	.read = wcn_gnss_dump_read,
+	.write = wcn_gnss_dump_write,
 	.open = wcn_gnss_dump_open,
 	.release = wcn_gnss_dump_release,
 };

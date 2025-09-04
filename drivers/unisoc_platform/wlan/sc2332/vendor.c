@@ -332,17 +332,6 @@ static int vendor_compose_radio_st(struct sk_buff *reply,
 
 		chan_list = nla_nest_start(reply, ATTR_LL_STATS_CH_INFO);
 		chan_info = nla_nest_start(reply, 0);
-
-		if (!chan_list) {
-			pr_err("%s %d\n", __func__, __LINE__);
-			goto out_put_fail;
-		}
-
-		if (!chan_info) {
-			pr_err("%s %d\n", __func__, __LINE__);
-			goto out_put_fail;
-		}
-
 		if (nla_put_u32(reply, ATTR_LL_STATS_CHANNEL_INFO_WIDTH,
 				radio_st->channels[0].channel.width))
 			goto out_put_fail;
@@ -1951,6 +1940,8 @@ static int vendor_set_sae_password(struct wiphy *wiphy,
 		netdev_info(vif->ndev, "type is : %d\n", type);
 		switch (type) {
 		case VENDOR_SAE_ENTRY:
+			if (sae_entry_index >= SPRD_SAE_MAX_NUM)
+				return -EINVAL;
 			sae_para.entry[sae_entry_index].vlan_id =
 			    SPRD_SAE_NOT_SET;
 			sae_para.entry[sae_entry_index].used = 1;
@@ -1958,9 +1949,8 @@ static int vendor_set_sae_password(struct wiphy *wiphy,
 					       &sae_para.entry[sae_entry_index],
 					       nla_data(pos), nla_len(pos));
 			sae_entry_index++;
-			if (sae_entry_index >= SPRD_SAE_MAX_NUM)
-				return -EINVAL;
 			break;
+
 		case VENDOR_SAE_GROUP_ID:
 			if (sae_para.group_count >= 31)
 				return 0;
@@ -2214,7 +2204,7 @@ int sc2332_report_acs_lte_event(struct sprd_vif *vif)
 	return 0;
 }
 
-static const struct wiphy_vendor_command vendor_cmd[] = {
+const struct wiphy_vendor_command vendor_cmd[] = {
 	{
 		{
 			.vendor_id = OUI_SPREAD,

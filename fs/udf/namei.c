@@ -30,7 +30,6 @@
 #include <linux/sched.h>
 #include <linux/crc-itu-t.h>
 #include <linux/exportfs.h>
-#include <linux/iversion.h>
 
 static inline int udf_match(int len1, const unsigned char *name1, int len2,
 			    const unsigned char *name2)
@@ -75,11 +74,12 @@ int udf_write_fi(struct inode *inode, struct fileIdentDesc *cfi,
 
 	if (fileident) {
 		if (adinicb || (offset + lfi < 0)) {
-			memcpy(sfi->impUse + liu, fileident, lfi);
+			memcpy((uint8_t *)sfi->fileIdent + liu, fileident, lfi);
 		} else if (offset >= 0) {
 			memcpy(fibh->ebh->b_data + offset, fileident, lfi);
 		} else {
-			memcpy(sfi->impUse + liu, fileident, -offset);
+			memcpy((uint8_t *)sfi->fileIdent + liu, fileident,
+				-offset);
 			memcpy(fibh->ebh->b_data, fileident - offset,
 				lfi + offset);
 		}
@@ -88,11 +88,11 @@ int udf_write_fi(struct inode *inode, struct fileIdentDesc *cfi,
 	offset += lfi;
 
 	if (adinicb || (offset + padlen < 0)) {
-		memset(sfi->impUse + liu + lfi, 0x00, padlen);
+		memset((uint8_t *)sfi->padding + liu + lfi, 0x00, padlen);
 	} else if (offset >= 0) {
 		memset(fibh->ebh->b_data + offset, 0x00, padlen);
 	} else {
-		memset(sfi->impUse + liu + lfi, 0x00, -offset);
+		memset((uint8_t *)sfi->padding + liu + lfi, 0x00, -offset);
 		memset(fibh->ebh->b_data, 0x00, padlen + offset);
 	}
 
@@ -135,8 +135,6 @@ int udf_write_fi(struct inode *inode, struct fileIdentDesc *cfi,
 			mark_buffer_dirty_inode(fibh->ebh, inode);
 		mark_buffer_dirty_inode(fibh->sbh, inode);
 	}
-	inode_inc_iversion(inode);
-
 	return 0;
 }
 
@@ -228,7 +226,7 @@ static struct fileIdentDesc *udf_find_entry(struct inode *dir,
 		lfi = cfi->lengthFileIdent;
 
 		if (fibh->sbh == fibh->ebh) {
-			nameptr = udf_get_fi_ident(fi);
+			nameptr = fi->fileIdent + liu;
 		} else {
 			int poffset;	/* Unpaded ending offset */
 
@@ -248,7 +246,7 @@ static struct fileIdentDesc *udf_find_entry(struct inode *dir,
 					}
 				}
 				nameptr = copy_name;
-				memcpy(nameptr, udf_get_fi_ident(fi),
+				memcpy(nameptr, fi->fileIdent + liu,
 					lfi - poffset);
 				memcpy(nameptr + lfi - poffset,
 					fibh->ebh->b_data, poffset);

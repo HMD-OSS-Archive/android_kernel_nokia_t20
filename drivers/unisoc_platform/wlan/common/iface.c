@@ -172,6 +172,119 @@ static struct notifier_block iface_host_reset_cb = {
 	.notifier_call = iface_host_reset,
 };
 
+static int iface_inetaddr_event(struct notifier_block *this,
+				unsigned long event, void *ptr)
+{
+	struct net_device *ndev;
+	struct sprd_vif *vif;
+	struct in_ifaddr *ifa = (struct in_ifaddr *)ptr;
+
+	if (!ifa || !(ifa->ifa_dev->dev))
+		return NOTIFY_DONE;
+
+	ndev = ifa->ifa_dev->dev;
+	vif = netdev_priv(ndev);
+
+	if (vif->wdev.iftype == NL80211_IFTYPE_STATION ||
+	    vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT) {
+		netdev_info(ndev, "inetaddr event %ld\n", event);
+		if (event == NETDEV_UP)
+			sprd_notify_ip(vif->priv, vif, SPRD_IPV4,
+				       (u8 *)&ifa->ifa_address);
+
+		if (event == NETDEV_DOWN) {
+			if (vif->priv->hif.hw_type != SPRD_HW_SC2355_PCIE)
+				sprd_fc_add_share_credit(vif->priv, vif);
+
+			sprd_qos_reset_wmmac_parameters(vif->priv);
+			sprd_qos_reset_wmmac_ts_info(vif->priv);
+			sprd_qos_init_default_map(vif->priv);
+		}
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block iface_inetaddr_cb = {
+	.notifier_call = iface_inetaddr_event,
+};
+
+static int iface_inetaddr6_event(struct notifier_block *this,
+				 unsigned long event, void *ptr)
+{
+	struct net_device *ndev;
+	struct sprd_vif *vif;
+	struct inet6_ifaddr *inet6_ifa = (struct inet6_ifaddr *)ptr;
+	struct sprd_work *work;
+	u8 *ipv6_addr;
+
+	if (!inet6_ifa || !(inet6_ifa->idev->dev))
+		return NOTIFY_DONE;
+
+	ndev = inet6_ifa->idev->dev;
+	vif = netdev_priv(ndev);
+
+	if (vif->wdev.iftype == NL80211_IFTYPE_STATION ||
+	    vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT) {
+		if (event == NETDEV_UP) {
+			work = sprd_alloc_work(SPRD_IPV6_ADDR_LEN);
+			if (!work) {
+				netdev_err(ndev, "%s out of memory\n",
+					   __func__);
+				return NOTIFY_DONE;
+			}
+			work->vif = vif;
+			work->id = SPRD_WORK_NOTIFY_IP;
+			ipv6_addr = (u8 *)work->data;
+			memcpy(ipv6_addr, (u8 *)&inet6_ifa->addr,
+			       SPRD_IPV6_ADDR_LEN);
+			sprd_queue_work(vif->priv, work);
+		}
+	}
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block iface_inet6addr_cb = {
+	.notifier_call = iface_inetaddr6_event,
+};
+
+static int iface_notify_init(struct sprd_priv *priv)
+{
+	int ret = 0;
+
+	atomic_notifier_chain_register(&wcn_reset_notifier_list,
+				       &iface_host_reset_cb);
+
+	ret = register_inetaddr_notifier(&iface_inetaddr_cb);
+	if (ret) {
+		pr_err("%s failed to register inetaddr notifier(%d)!\n",
+		       __func__, ret);
+		return ret;
+	}
+
+	if (priv->fw_capa & SPRD_CAPA_NS_OFFLOAD) {
+		pr_info("\tIPV6 NS Offload supported\n");
+		ret = register_inet6addr_notifier(&iface_inet6addr_cb);
+		if (ret) {
+			pr_err
+			    ("%s failed to register inet6addr notifier(%d)!\n",
+			     __func__, ret);
+			return ret;
+		}
+	}
+
+	return ret;
+}
+
+static void iface_notify_deinit(struct sprd_priv *priv)
+{
+	atomic_notifier_chain_unregister(&wcn_reset_notifier_list,
+					 &iface_host_reset_cb);
+	unregister_inetaddr_notifier(&iface_inetaddr_cb);
+	if (priv->fw_capa & SPRD_CAPA_NS_OFFLOAD)
+		unregister_inet6addr_notifier(&iface_inet6addr_cb);
+}
+
 static void iface_stop_net(struct sprd_vif *vif)
 {
 	struct sprd_vif *real_vif, *tmp_vif;
@@ -267,16 +380,16 @@ static int iface_open(struct net_device *ndev)
 
 	netdev_info(ndev, "Power on WCN (%d time)\n",
 		    atomic_read(&hif->power_cnt));
-
+	if ((vif->mode == SPRD_MODE_AP || vif->mode == SPRD_MODE_STATION) &&
+		(atomic_read(&hif->power_cnt) == 1)) {
+		pr_info("softap or station already open!,no need power on\n");
+		return 0;
+	}
 	ret = sprd_iface_set_power(hif, true);
 	if (ret)
 		return ret;
 
-	ret = sprd_init_fw(vif);
-	if (!ret && vif->wdev.iftype == NL80211_IFTYPE_AP) {
-		netif_carrier_off(ndev);
-		return 0;
-	}
+	sprd_init_fw(vif);
 	netif_start_queue(ndev);
 
 	return 0;
@@ -458,6 +571,7 @@ static netdev_tx_t iface_start_xmit(struct sk_buff *skb, struct net_device *ndev
 
 	msg = sprd_chip_get_msg(&vif->priv->chip, SPRD_TYPE_DATA, vif->mode);
 	if (!msg) {
+		// pr_err("%s, %d, get msg bug failed\n", __func__, __LINE__);
 		ndev->stats.tx_fifo_errors++;
 		return NETDEV_TX_BUSY;
 	}
@@ -856,6 +970,7 @@ out:
 static int iface_set_ndev_mac(struct net_device *ndev, struct ifreq *ifr)
 {
 	struct sprd_vif *vif = netdev_priv(ndev);
+	struct sprd_hif *hif = &vif->priv->hif;
 	struct android_wifi_priv_cmd priv_cmd;
 	char *command = NULL;
 	int ret = 0;
@@ -896,6 +1011,21 @@ static int iface_set_ndev_mac(struct net_device *ndev, struct ifreq *ifr)
 	ether_addr_copy(vif->priv->default_mac, addr);
 	ether_addr_copy(vif->mac, addr);
 
+	/* iface_register_netdev has generated an invalid address, and sent to
+	 * cp2 by CMD_OPEN command, so it is necessary to update a correct
+	 * netdevice address to cp2
+	 */
+	if (atomic_read(&hif->power_cnt) != 0) {
+		netdev_info(ndev, "set nedv mac to cp2: %pM\n", addr);
+		ret = sprd_set_random_mac(vif->priv, vif,
+					  SPRD_CONNECT_RANDOM_ADDR,
+					  addr);
+		if (ret) {
+			netdev_err(ndev, "%s set ndev mac error\n", __func__);
+			ret = -EFAULT;
+			goto out;
+		}
+	}
 out:
 	kfree(command);
 	return ret;
@@ -956,12 +1086,14 @@ static int iface_set_mac(struct net_device *dev, void *addr)
 			memcpy(vif->random_mac, sa->sa_data, ETH_ALEN);
 			memcpy(dev->dev_addr, sa->sa_data, ETH_ALEN);
 			if (atomic_read(&hif->power_cnt) != 0) {
-				netdev_info(dev, "set random mac to cp2 : %pM\n", vif->random_mac);
+				netdev_info(dev, "set random mac to cp2: %pM\n",
+					    vif->random_mac);
 				ret = sprd_set_random_mac(vif->priv, vif,
 						  SPRD_CONNECT_RANDOM_ADDR,
 						  vif->random_mac);
 				if (ret) {
-					netdev_err(dev, "%s set station random mac error\n", __func__);
+					netdev_err(dev, "%s set station random mac error\n",
+						   __func__);
 					return -EFAULT;
 				}
 			}
@@ -1101,125 +1233,6 @@ static struct net_device_ops sprd_netdev_ops = {
 	.ndo_do_ioctl = iface_ioctl,
 	.ndo_set_mac_address = iface_set_mac,
 };
-
-static int iface_inetaddr_event(struct notifier_block *this,
-				unsigned long event, void *ptr)
-{
-	struct net_device *ndev;
-	struct sprd_vif *vif;
-	struct in_ifaddr *ifa = (struct in_ifaddr *)ptr;
-
-	if (!ifa || !(ifa->ifa_dev->dev))
-		return NOTIFY_DONE;
-
-	if (ifa->ifa_dev->dev->netdev_ops != &sprd_netdev_ops)
-		return NOTIFY_DONE;
-
-	ndev = ifa->ifa_dev->dev;
-	vif = netdev_priv(ndev);
-
-	if (vif->wdev.iftype == NL80211_IFTYPE_STATION ||
-	    vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT) {
-		netdev_info(ndev, "inetaddr event %ld\n", event);
-		if (event == NETDEV_UP)
-			sprd_notify_ip(vif->priv, vif, SPRD_IPV4,
-				       (u8 *)&ifa->ifa_address);
-
-		if (event == NETDEV_DOWN) {
-			if (vif->priv->hif.hw_type != SPRD_HW_SC2355_PCIE)
-				sprd_fc_add_share_credit(vif->priv, vif);
-
-			sprd_qos_reset_wmmac_parameters(vif->priv);
-			sprd_qos_reset_wmmac_ts_info(vif->priv);
-			sprd_qos_init_default_map(vif->priv);
-		}
-	}
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block iface_inetaddr_cb = {
-	.notifier_call = iface_inetaddr_event,
-};
-
-static int iface_inetaddr6_event(struct notifier_block *this,
-				 unsigned long event, void *ptr)
-{
-	struct net_device *ndev;
-	struct sprd_vif *vif;
-	struct inet6_ifaddr *inet6_ifa = (struct inet6_ifaddr *)ptr;
-	struct sprd_work *work;
-	u8 *ipv6_addr;
-
-	if (!inet6_ifa || !(inet6_ifa->idev->dev))
-		return NOTIFY_DONE;
-
-	if (inet6_ifa->idev->dev->netdev_ops != &sprd_netdev_ops)
-		return NOTIFY_DONE;
-
-	ndev = inet6_ifa->idev->dev;
-	vif = netdev_priv(ndev);
-
-	if (vif->wdev.iftype == NL80211_IFTYPE_STATION ||
-	    vif->wdev.iftype == NL80211_IFTYPE_P2P_CLIENT) {
-		if (event == NETDEV_UP) {
-			work = sprd_alloc_work(SPRD_IPV6_ADDR_LEN);
-			if (!work) {
-				netdev_err(ndev, "%s out of memory\n",
-					   __func__);
-				return NOTIFY_DONE;
-			}
-			work->vif = vif;
-			work->id = SPRD_WORK_NOTIFY_IP;
-			ipv6_addr = (u8 *)work->data;
-			memcpy(ipv6_addr, (u8 *)&inet6_ifa->addr,
-			       SPRD_IPV6_ADDR_LEN);
-			sprd_queue_work(vif->priv, work);
-		}
-	}
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block iface_inet6addr_cb = {
-	.notifier_call = iface_inetaddr6_event,
-};
-
-static int iface_notify_init(struct sprd_priv *priv)
-{
-	int ret = 0;
-
-	atomic_notifier_chain_register(&wcn_reset_notifier_list,
-				       &iface_host_reset_cb);
-
-	ret = register_inetaddr_notifier(&iface_inetaddr_cb);
-	if (ret) {
-		pr_err("%s failed to register inetaddr notifier(%d)!\n",
-		       __func__, ret);
-		return ret;
-	}
-
-	if (priv->fw_capa & SPRD_CAPA_NS_OFFLOAD) {
-		pr_info("\tIPV6 NS Offload supported\n");
-		ret = register_inet6addr_notifier(&iface_inet6addr_cb);
-		if (ret) {
-			pr_err
-			    ("%s failed to register inet6addr notifier(%d)!\n",
-			     __func__, ret);
-			return ret;
-		}
-	}
-
-	return ret;
-}
-
-static void iface_notify_deinit(struct sprd_priv *priv)
-{
-	atomic_notifier_chain_unregister(&wcn_reset_notifier_list,
-					 &iface_host_reset_cb);
-	unregister_inetaddr_notifier(&iface_inetaddr_cb);
-	if (priv->fw_capa & SPRD_CAPA_NS_OFFLOAD)
-		unregister_inet6addr_notifier(&iface_inet6addr_cb);
-}
 
 static void iface_init_vif(struct sprd_priv *priv, struct sprd_vif *vif,
 			   const char *name)

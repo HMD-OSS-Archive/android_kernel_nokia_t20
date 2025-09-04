@@ -30,9 +30,6 @@
 #define SPRD_PMIC_CDP_TYPE		BIT(5)
 #define SPRD_PMIC_CHG_TYPE_MASK		GENMASK(7, 5)
 
-#define SPRD_UMP518_IRQ_BASE		0x80
-#define SPRD_UMP518_IRQ_NUMS		10
-
 #define SPRD_SC2730_IRQ_BASE		0x80
 #define SPRD_SC2730_IRQ_NUMS		10
 #define SPRD_SC2721_IRQ_BASE		0xc0
@@ -103,11 +100,6 @@ enum usb_charger_type sprd_pmic_detect_charger_type(struct device *dev)
 	return type;
 }
 EXPORT_SYMBOL_GPL(sprd_pmic_detect_charger_type);
-
-static const struct sprd_pmic_data ump518_data = {
-	.irq_base = SPRD_UMP518_IRQ_BASE,
-	.num_irqs = SPRD_UMP518_IRQ_NUMS,
-};
 
 static const struct sprd_pmic_data sc2730_data = {
 	.irq_base = SPRD_SC2730_IRQ_BASE,
@@ -266,7 +258,6 @@ static const struct of_device_id sprd_pmic_match[] = {
 	{ .compatible = "sprd,sc2730", .data = &sc2730_data },
 	{ .compatible = "sprd,sc2721", .data = &sc2721_data },
 	{ .compatible = "sprd,sc2720", .data = &sc2720_data },
-	{ .compatible = "sprd,ump518", .data = &ump518_data },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sprd_pmic_match);

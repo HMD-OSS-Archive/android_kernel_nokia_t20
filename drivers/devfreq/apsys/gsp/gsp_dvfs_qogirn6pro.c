@@ -14,8 +14,7 @@
 #include <linux/soc/sprd/hwfeature.h>
 
 #include "sprd_dvfs_apsys.h"
-#include "sprd_dvfs_gsp.h"
-#include "../sys/apsys_dvfs_qogirn6pro.h"
+#include "../sys/sprd_dvfs_gsp.h"
 
 static struct ip_dvfs_map_cfg map_table[] = {
 	{0, VOLT60, GSP_CLK_INDEX_256M, GSP_CLK256M},
@@ -290,11 +289,6 @@ static int gsp_dvfs_init(struct gsp_dvfs *gsp)
 	char chip_type[HWFEATURE_STR_SIZE_LIMIT];
 
 	pr_info("%s()\n", __func__);
-
-	if (dpu_vsp_dvfs_check_clkeb()) {
-		pr_info("%s(), dpu_vsp eb is not on\n", __func__);
-		return -1;
-	}
 
 	gsp_dvfs_map_cfg(gsp);
 	set_gsp_gfree_wait_delay(gsp, gsp->dvfs_coffe.gfree_wait_delay);

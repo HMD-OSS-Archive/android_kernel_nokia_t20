@@ -22,14 +22,29 @@
 #include <linux/vmalloc.h>
 #include <misc/marlin_platform.h>
 #include <misc/wcn_bus.h>
+#include <linux/gpio.h>
+#include <linux/of_device.h>
+#include <linux/of_gpio.h>
 
 #include "common/common.h"
 #include "hw_param.h"
 
+#define CE_FCC 
 #define SYSTEM_WIFI_CONFIG_FILE "wifi_board_config.ini"
+#ifdef CE_FCC
+#define SYSTEM_WIFI_CONFIG_FILE_SKU1_CE "wifi_board_config_sku1_row_ce_id1.ini"
+#define SYSTEM_WIFI_CONFIG_FILE_SKU2_FCC "wifi_board_config_sku2_latam_fcc_id0.ini"
+#define SYSTEM_WIFI_CONFIG_FILE_SKU3_CE_FCC "wifi_board_config_sku3_wifionly_ce_fcc_id2.ini"
+#endif
 #define SYSTEM_WIFI_AB_CONFIG_FILE "wifi_board_config_ab.ini"
 #define SYSTEM_WIFI_AC_CONFIG_FILE "wifi_board_config_ac.ini"
 #define SYSTEM_WIFI_AA_CONFIG_FILE "wifi_board_config_aa.ini"
+
+/* marlin3 lite IPD versions:
+ * 1st source(original): TSMC
+ * 2nd source: Xpeedic
+ */
+#define SYSTEM_WIFI_IPD_XPEEDIC_CONFIG_FILE "wifi_board_config.xpe.ini"
 
 #define CF_TAB(NAME, MEM_OFFSET, TYPE) \
 	{ NAME, (size_t)(&(((struct wifi_conf_t *)(0))->MEM_OFFSET)), TYPE}
@@ -428,10 +443,49 @@ static int hw_param_nvm_parse(struct sprd_priv *priv, const char *path, void *p_
 	return ret;
 }
 
+#ifdef CE_FCC
+static int get_rfboard_id_by_cmdline(void)
+{
+	struct device_node *cmdline_node;
+	const char *cmd_line;
+	int rc;
+	char *p = NULL;
+	char ret;
+
+	cmdline_node = of_find_node_by_path("/chosen");
+	rc = of_property_read_string(cmdline_node, "bootargs", &cmd_line);
+	if (!rc) {
+		p = strstr(cmd_line, "rfboard.id=");
+		if (p == NULL) {
+			printk("rfboard.id= is not exit\n");
+			return 3;
+		} else {
+			p += 11;
+			strncpy(&ret, p, 1);
+			if(ret == '0') // sku2 latam fcc
+				return 0;
+			else if(ret == '1') // sku1 row ce
+				return 1;
+			else if(ret == '2') // sku3 wifionly ce fcc
+				return 2;
+			else
+				return 3; // default
+		}
+	} else {
+		printk("can't not parse bootargs rfboard.id property\n");
+		return 3;
+	}
+}
+#endif
+
 int sc2355_get_nvm_table(struct sprd_priv *priv, struct wifi_conf_t *p)
 {
+#ifdef CE_FCC
+	int ret = 0;
+	pr_info("%s in\n", __func__);
+#endif
 	if (wcn_get_chip_type() == WCN_CHIP_ID_INVALID) {
-		pr_err("%s, marlin chip ID is invalid\n", __func__);
+		pr_info("%s, marlin chip ID is invalid\n", __func__);
 		return -1;
 	} else if (wcn_get_chip_type() == WCN_CHIP_ID_AA) {
 		pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
@@ -439,7 +493,38 @@ int sc2355_get_nvm_table(struct sprd_priv *priv, struct wifi_conf_t *p)
 			SYSTEM_WIFI_AA_CONFIG_FILE);
 		return hw_param_nvm_parse(priv, SYSTEM_WIFI_AA_CONFIG_FILE, (void *)p);
 	}
+#ifdef CE_FCC // add by hz
+	ret = get_rfboard_id_by_cmdline();
+	pr_info("%s :rfboard id= %d\n", __func__, ret);
+	if(ret == 0) {
+		pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
+			__func__, wcn_get_chip_type(),
+			SYSTEM_WIFI_CONFIG_FILE_SKU2_FCC);
+		return hw_param_nvm_parse(priv, SYSTEM_WIFI_CONFIG_FILE_SKU2_FCC, (void *)p);
+	} else if(ret == 1) {
+		pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
+			__func__, wcn_get_chip_type(),
+			SYSTEM_WIFI_CONFIG_FILE_SKU1_CE);
+		return hw_param_nvm_parse(priv, SYSTEM_WIFI_CONFIG_FILE_SKU1_CE, (void *)p);
+	} else if(ret == 2) {
+		pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
+			__func__, wcn_get_chip_type(),
+			SYSTEM_WIFI_CONFIG_FILE_SKU3_CE_FCC);
+		return hw_param_nvm_parse(priv, SYSTEM_WIFI_CONFIG_FILE_SKU3_CE_FCC, (void *)p);
+	} else {
+		pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
+			__func__, wcn_get_chip_type(), SYSTEM_WIFI_CONFIG_FILE);
+		return hw_param_nvm_parse(priv, SYSTEM_WIFI_CONFIG_FILE, (void *)p);
+	}
+#else
+	if (marlin_get_wcn_xpe_efuse_data() == WCN_XPE_EFUSE_DATA) {
+		pr_info("%s, chip id of marlin3 lite is %d, IPD(%u) open %s\n",
+			__func__, wcn_get_chip_type(), marlin_get_wcn_xpe_efuse_data(),
+			SYSTEM_WIFI_IPD_XPEEDIC_CONFIG_FILE);
+		return hw_param_nvm_parse(priv, SYSTEM_WIFI_IPD_XPEEDIC_CONFIG_FILE, (void *)p);
+	}
 	pr_info("%s, chip id of marlin3 lite is %d, open %s\n",
 		__func__, wcn_get_chip_type(), SYSTEM_WIFI_CONFIG_FILE);
 	return hw_param_nvm_parse(priv, SYSTEM_WIFI_CONFIG_FILE, (void *)p);
+#endif
 }

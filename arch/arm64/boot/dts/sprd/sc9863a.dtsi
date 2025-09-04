@@ -55,7 +55,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster0>;
+			cpufreq-data-v1 = <&cpufreq_clus0>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			#cooling-cells = <2>;
@@ -68,7 +68,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster0>;
+			cpufreq-data-v1 = <&cpufreq_clus0>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <100>;
@@ -79,7 +79,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x200>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster0>;
+			cpufreq-data-v1 = <&cpufreq_clus0>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <100>;
@@ -90,7 +90,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x300>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster0>;
+			cpufreq-data-v1 = <&cpufreq_clus0>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <100>;
@@ -101,7 +101,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x400>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster1>;
+			cpufreq-data-v1 = <&cpufreq_clus1>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			#cooling-cells = <2>;
@@ -113,7 +113,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x500>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster1>;
+			cpufreq-data-v1 = <&cpufreq_clus1>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <153>;
@@ -124,7 +124,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x600>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster1>;
+			cpufreq-data-v1 = <&cpufreq_clus1>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <153>;
@@ -135,7 +135,7 @@
 			compatible = "arm,cortex-a55";
 			reg = <0x0 0x700>;
 			enable-method = "psci";
-			cpufreq-data-v1 = <&cpufreq_cluster1>;
+			cpufreq-data-v1 = <&cpufreq_clus1>;
 			cpu-idle-states = <&CORE_PD>;
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <153>;
@@ -154,18 +154,18 @@
 		};
 	};
 
-	debug_log: debuglog {
-		compatible                         = "sprd,debuglog";
-		sprd,pdbg-irq-domain-gic           = "GICv3";
-		sprd,pdbg-irq-domain-gpio          = "sprd-gpio-plus";
-		sprd,pdbg-irq-domain-ana           = "spi4.0";
-		sprd,pdbg-irq-domain-ana-eic       = "41800000.spi:pmic@0:gpio-controller@280";
-		sprd,pdbg-irq-domain-ap-eic-async  = "402100a0.gpio";
-	};
+	power: power-debug {
+		compatible = "sprd,power-debug-sharkl3";
 
-	debug_stat: debugstat {
-		compatible = "sprd,debugstat";
-		soc_slp_cnt_reg = <&pmu_apb_regs REG_PMU_APB_SLEEP_CNT5 0xffff>;
+		sprd,enable = <1>;
+		sprd,scan-interval = <30>;
+
+		sprd,sys-ap-ahb = <&ap_ahb_regs>;
+		sprd,sys-ap-apb = <&ap_apb_regs>;
+		sprd,sys-pmu-apb = <&pmu_apb_regs>;
+		sprd,sys-aon-apb = <&aon_apb_regs>;
+		sprd,sys-ap-intc = <&ap_intc0_regs &ap_intc1_regs &ap_intc2_regs
+				&ap_intc3_regs &ap_intc4_regs &ap_intc5_regs>;
 	};
 
 	psci {
@@ -173,26 +173,74 @@
 		method = "smc";
 	};
 
-	cpufreq_cluster0: cpufreq-cluster0 {
+	cpufreq_clus0: cpufreq-clus0 {
+		cpufreq-cluster-id = <0>;
+		sprd,multi-version;
 		nvmem-cells = <&dvfs_bin_cpu0>;
 		nvmem-cell-names = "dvfs_bin";
-		sprd,cpufreq-boost;
-		sprd,multi-version;
-		sprd,pmic-type = <2>;
-		sprd,temp-threshold = <65>;
-		sprd,cluster-cpumask = <0xf>;
-		sprd,transition-delay = <500>;
+		sprd,cpufreq-temp-threshold = <65>;
+		cpufreq-cluster-cpumask = <0xf>;
+		clocks = <&aon_clk CLK_CORE0>,
+			<&aon_clk CLK_CORE1>,
+			<&aon_clk CLK_CORE2>,
+			<&aon_clk CLK_CORE3>,
+			<&pll CLK_TWPLL_768M>,
+			<&mpll CLK_MPLL0>;
+		clock-names = "core_clk",
+			"core1_clk",
+			"core2_clk",
+			"core3_clk",
+			"low_freq_clk_parent",
+			"high_freq_clk_parent";
+		clock-latency = <50000>;
+		voltage-tolerance = <6413>;
+		volt-share-masters-bits = <0x1>;
+		transition_delay_us = <500>;
 	};
 
-	cpufreq_cluster1: cpufreq-cluster1 {
+	cpufreq_clus1: cpufreq-clus1 {
+		cpufreq-cluster-id = <1>;
+		sprd,multi-version;
 		nvmem-cells = <&dvfs_bin_cpu1>;
 		nvmem-cell-names = "dvfs_bin";
-		sprd,cpufreq-boost;
+		sprd,cpufreq-temp-threshold = <65>;
+		cpufreq-cluster-cpumask = <0xf0>;
+		cpufreq-sub-clusters = <&cpufreq_fcm>;
+		clocks = <&aon_clk CLK_CORE4>,
+			<&aon_clk CLK_CORE5>,
+			<&aon_clk CLK_CORE6>,
+			<&aon_clk CLK_CORE7>,
+			<&pll CLK_TWPLL_768M>,
+			<&mpll CLK_MPLL1>;
+		clock-names = "core_clk",
+			"core1_clk",
+			"core2_clk",
+			"core3_clk",
+			"low_freq_clk_parent",
+			"high_freq_clk_parent";
+		clock-latency = <50000>;
+		voltage-tolerance = <0>;
+		volt-share-masters-bits = <0xa>;
+		freq-sync-slaves-bits = <0x8>;
+		transition_delay_us = <500>;
+	};
+
+	cpufreq_fcm: cpufreq-fcm {
+		cpufreq-cluster-id = <3>;
 		sprd,multi-version;
-		sprd,pmic-type = <0>;
-		sprd,temp-threshold = <65>;
-		sprd,cluster-cpumask = <0xf0>;
-		sprd,transition-delay = <500>;
+		nvmem-cells = <&dvfs_bin_dsu>;
+		nvmem-cell-names = "dvfs_bin";
+		sprd,cpufreq-temp-threshold = <65>;
+		clocks = <&aon_clk CLK_SCU>,
+			<&pll CLK_TWPLL_768M>,
+			<&mpll CLK_MPLL2>;
+		clock-names = "clk",
+			"clk_low",
+			"clk_high";
+		clock-latency = <50000>;
+		voltage-tolerance = <0>;
+		volt-share-masters-bits = <0xa>;
+		freq-sync-hosts-bits = <0x2>;
 	};
 
 	timer {
@@ -243,7 +291,6 @@
 			compatible = "sprd,sc9863a-apahb-gate";
 			sprd,syscon = <&ap_ahb_regs>; /* 0x20e00000 */
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		ap_clk: clock-controller@21500000 {
@@ -260,7 +307,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		aon_clk: clock-controller@402d0000 {
@@ -277,7 +323,6 @@
 			compatible = "sprd,sc9863a-aonapb-gate";
 			sprd,syscon = <&aon_apb_regs>; /* 0x402e0000 */
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		pll: pll {
@@ -312,7 +357,6 @@
 			compatible = "sprd,sc9863a-mm-gate";
 			sprd,syscon = <&mm_ahb_regs>; /* 0x60800000 */
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		mm_clk: clock-controller@60900000 {
@@ -335,7 +379,6 @@
 					MASK_PMU_APB_PD_MM_VSP_FORCE_SHUTDOWN>;
 			syscon-names = "enable", "power";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		apapb_gate: apapb-gate {
@@ -344,7 +387,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		funnel@10001000 {
@@ -731,7 +773,6 @@
 				usb-phy = <&hsphy>;
 				phy-names = "usb";
 				dr-mode = "peripheral";
-				sprd,usb-data-enable = <1>;
 			};
 
 			sdio3: sdio@20600000 {
@@ -764,9 +805,7 @@
 				sprd,syscon-enable = <&aon_apb_regs>;
 				sprd,syscon-apahb = <&ap_ahb_regs>;
 				sprd,syscon-anag4 = <&anlg_phy_g4_regs>;
-				sprd,vdd-voltage = <3050000>;
-				io-channels = <&pmic_adc 30>, <&pmic_adc 31>;
-				io-channel-names = "dp", "dm";
+				sprd,vdd-voltage = <3300000>;
 				#phy-cells = <0>;
 			};
 		};

@@ -1303,11 +1303,6 @@
 #define MASK_AON_APB_PUB_CFG_EARLY_RESP_EN                  0x0001
 #define MASK_AON_APB_RESERVE_H                              0xFFFFFFFF
 #define MASK_AON_APB_RESERVE_L                              0xFFFFFFFF
-#define MASK_GPU_CLK_CORE_GPU_EB                            0x0004
-#define MASK_GPU_PDC_CUR_ST_ST0                             0x00F0
-#define MASK_GPU_PDC_CUR_ST_ST1                             0x00F0
-#define MASK_GPU_PDC_CUR_ST_ST2                             0x00F0
-#define MASK_GPU_PDC_CUR_ST_ST3                             0x00F0
 #define MASK_PMU_APB_CH_ACCESS_SP_MEM_EN                    0x0040
 #define MASK_PMU_APB_AUDIO_ACCESS_AON_MEM_EN                0x0020
 #define MASK_PMU_APB_IPA_ACCESS_AON_MEM_EN                  0x0010
@@ -4238,7 +4233,6 @@
 #define MASK_MM_AHB_DCAM0_SOFT_RST                          0x00000080
 #define MASK_MM_AHB_ISP_VAU_SOFT_RST                        0x00001000
 #define MASK_MM_AHB_ISP_ALL_SOFT_RST                        0x00002000
-#define MASK_MM_AHB_SYS_H2P_DB_SOFT_RST                     0x00000004
 #define MASK_MM_AHB_ISP_SOFT_RST                            0x00004000
 #define MASK_MM_AHB_JPG_SOFT_RST                            0x00000008
 #define MASK_MM_AHB_FD_EN                                   0x00000008
@@ -4246,9 +4240,6 @@
 #define MASK_MM_AHB_FD_SOFT_RST                             0x00000010
 #define MASK_MM_AHB_MM_LPC_DISABLE                          0x00000000
 #define MASK_MM_AHB_DVFS_EN                                 0x00000008
-#define MASK_MM_AHB_CAMERA_DVFS_ACK                         0x00000100
-#define MASK_MM_AHB_CAMERA_DVFS_VOLTAGE_SW                  0x000000f0
-#define MASK_MM_AHB_CAMERA_DVFS_REQ_SW                      0x00000001
 #define MASK_MM_AHB_CPP_VAU_SOFT_RST                        0x00000200
 #define MASK_MM_AHB_CPP_ALL_SOFT_RST                        0x00000800
 #define MASK_MM_AHB_CPP_SOFT_RST                            0x00000400
@@ -4405,9 +4396,6 @@
 #define MASK_DISPC1_GLB_APB_AP2IPA_MTX_S0_LP_EB             0x10000
 #define MASK_DISPC1_GLB_APB_AP2IPA_MTX_S0_LP_NUM            0xFFFF
 #define MASK_DISPC1_GLB_APB_ENCRYPTION_MODE                 0x0001
-#define MASK_DPU_VSP_SYS_VPU_ENC0_SOFT_RST                  0x0002
-#define MASK_DPU_VSP_SYS_VPU_ENC1_SOFT_RST                  0x0004
-#define MASK_DPU_VSP_SYS_VPU_DEC_SOFT_RST                   0x0008
 #define MASK_DPU_VSP_APB_VPU_ENC0_SOFT_RST                  0x0008
 #define MASK_DPU_VSP_APB_VPU_ENC1_SOFT_RST                  0x0010
 #define MASK_DPU_VSP_APB_VPU_DEC_SOFT_RST                   0x0020

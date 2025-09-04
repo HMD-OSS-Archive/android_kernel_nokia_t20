@@ -924,9 +924,9 @@ static int sprdwl_probe(struct platform_device *pdev)
 		sprdwl_sipc_txrx_buf_deinit(intf);
 #endif
 		sprdwl_txrx_buf_deinit();
+		sprdwl_core_free((struct sprdwl_priv *)intf->priv);
 		sprdwl_chip_set_power(intf, false);
 		sprdwl_sipc_deinit(intf);
-		sprdwl_core_free((struct sprdwl_priv *)intf->priv);
 		kfree(intf);
 		return ret;
 	}

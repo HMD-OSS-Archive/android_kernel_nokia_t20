@@ -21,7 +21,7 @@
 #include <linux/seq_file.h>
 
 #define SCHED_WORK(x) queue_work(system_unbound_wq, x)
-#define SCHED_PUMP_WORK(x, t) queue_delayed_work(system_unbound_wq, x, t)
+#define SCHED_PUMP_WORK(x, t) queue_delayed_work(system_unbound_wq, x, t);
 
 
 #define SWCQ_NUM_SLOTS	64
@@ -169,8 +169,7 @@ inline void __dbg_add_host_log(struct mmc_host *mmc, int type,
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].type = type;
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].cmd = cmd;
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].arg = arg;
-		dbg_run_host_log_dat[swcq->dbg_host_cnt].blocks = mrq ?
-		(mrq->data ? mrq->data->blocks : 0) : 0;
+		dbg_run_host_log_dat[swcq->dbg_host_cnt].blocks = 0;
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].skip = l_skip;
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].mrq = mrq;
 		dbg_run_host_log_dat[swcq->dbg_host_cnt].tag = mrq ? mrq->tag : -1;
@@ -218,11 +217,11 @@ void dump_cmd_history(struct mmc_swcq *swcq)
 		if (swcq->cmd_history[j].time_sec == 0)
 			continue;
 
-			pr_info("[%d] time_sec:%lld time_usec:%lld type:%d CMD%d arg:0x%x blk:%d"
+			pr_info("[%d] time_sec:%lld time_usec:%lld type:%d CMD%d arg:0x%x,"
 			"skip:%d pid:%d mrq:0x%p qcnt:%d cmdq_cnt:%d flags:0x%x tsk_idx:0x%x",
 			i, swcq->cmd_history[j].time_sec, swcq->cmd_history[j].time_usec,
-			swcq->cmd_history[j].type, swcq->cmd_history[j].cmd,
-			swcq->cmd_history[j].arg, swcq->cmd_history[j].blocks,
+			swcq->cmd_history[j].type,
+			swcq->cmd_history[j].cmd, swcq->cmd_history[j].arg,
 			swcq->cmd_history[j].skip, swcq->cmd_history[j].pid,
 			swcq->cmd_history[j].mrq, swcq->cmd_history[j].qcnt,
 			swcq->cmd_history[j].cmdq_cnt, swcq->cmd_history[j].flags,
@@ -871,7 +870,6 @@ static void mmc_swcq_pump_requests(struct mmc_swcq *swcq)
 	spin_lock_irqsave(&swcq->lock, flags);
 	/* Make sure we are not already running a request now */
 	if (swcq->mrq || swcq->pump_busy
-		|| swcq->recovery_halt
 		|| (emmc_resetting_when_cmdq == 1)) {
 		if (swcq->pump_busy)
 			dbg_add_host_log(swcq->mmc, 58, 0, swcq->pump_busy, 0);
@@ -888,7 +886,7 @@ static void mmc_swcq_pump_requests(struct mmc_swcq *swcq)
 		return;
 	}
 
-	if (!swcq->timer_running && swcq->cmdq_support) {
+	if (!swcq->timer_running) {
 		swcq->timer_running = true;
 		mod_timer(&swcq->check_timer, jiffies + msecs_to_jiffies(swcq->timeout));
 	}
@@ -1125,10 +1123,17 @@ static void mmc_blk_cmdq_end_request(struct mmc_request *mrq, int task_id)
 	struct mmc_queue *mq = q->queuedata;
 	struct mmc_host *host = mq->card->host;
 	struct mmc_swcq *swcq = host->cqe_private;
+	unsigned long flags;
 
 	if (swcq_mmc_blk_rq_error(&mqrq->brq) ||
 	    swcq_mmc_blk_urgent_bkops_needed(mq, mqrq)) {
-		swcq->recovery_cnt++;
+		spin_lock_irqsave(&mq->lock, flags);
+		mq->recovery_needed = true;
+		mq->recovery_req = req;
+		spin_unlock_irqrestore(&mq->lock, flags);
+		host->cqe_ops->cqe_recovery_start(host);
+		schedule_work(&mq->recovery_work);
+		return;
 	}
 
 	mmc_cmdq_post_request(swcq, task_id);
@@ -1704,18 +1709,12 @@ static bool mmc_swcq_is_busy(struct mmc_host *mmc)
 	struct mmc_queue *mq = swcq->mq;
 	bool busy;
 
-	if (!swcq->cmdq_support || !swcq->cmdq_mode)
-		busy = mq ? (mq->in_flight[MMC_ISSUE_ASYNC] > 3) : false;
-	else
-		busy = mq ? (mq->in_flight[MMC_ISSUE_ASYNC] >
+	busy = mq ? (mq->in_flight[MMC_ISSUE_ASYNC] >
 			(swcq->cmdq_depth - 4)) : false;
 
 	return busy;
 }
 
-#ifdef CONFIG_SPRD_DEBUG
-static u32 recovery_print_time;
-#endif
 static void mmc_swcq_recovery_start(struct mmc_host *mmc)
 {
 	struct mmc_swcq *swcq = mmc->cqe_private;
@@ -1724,14 +1723,7 @@ static void mmc_swcq_recovery_start(struct mmc_host *mmc)
 	spin_lock_irqsave(&swcq->lock, flags);
 	swcq->recovery_halt = true;
 	swcq->mode_need_change = false;
-	swcq->recovery_cnt++;
 	spin_unlock_irqrestore(&swcq->lock, flags);
-#ifdef CONFIG_SPRD_DEBUG
-	if ((ktime_to_ms(ktime_get()) - recovery_print_time) > (10000ULL)) {
-		pr_info("%s : recovery_cnt = %d\n", mmc_hostname(mmc), swcq->recovery_cnt);
-		recovery_print_time = ktime_to_ms(ktime_get());
-	}
-#endif
 }
 
 static void mmc_swcq_recovery_finish(struct mmc_host *mmc)
@@ -1754,7 +1746,6 @@ static void mmc_swcq_recovery_finish(struct mmc_host *mmc)
 		mmc_swcq_pump_requests(swcq);
 }
 
-static bool queue_flag;
 static int mmc_swcq_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct mmc_queue_req *mqrq = container_of(mrq, struct mmc_queue_req,
@@ -1774,11 +1765,6 @@ static int mmc_swcq_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	if (!swcq->mq)
 		swcq->mq = mq;
-
-	if (!queue_flag) {
-		blk_queue_flag_set(QUEUE_FLAG_SAME_FORCE, q);
-		queue_flag = true;
-	}
 
 	/* Do not queue any new requests in recovery mode. */
 	if (swcq->recovery_halt) {
@@ -1878,9 +1864,6 @@ static int mmc_swcq_enable(struct mmc_host *mmc, struct mmc_card *card)
 	if (!swcq->initialized && card) {
 		swcq->initialized = true;
 		swcq->cmdq_depth = card->ext_csd.cmdq_depth;
-		swcq->cmdq_support = card->ext_csd.cmdq_support;
-		if (!swcq->cmdq_support)
-			pr_info("%s : emmc not support CMDQ!\n", mmc_hostname(mmc));
 		card->reenable_cmdq = false;
 	}
 
@@ -1961,9 +1944,9 @@ static void check_cmdq_timer(struct timer_list *t)
 	pre_cmdqcnt = atomic_read(&swcq->cmdq_cnt);
 	pre_mode = swcq->cmdq_mode;
 
-	if (atomic_read(&swcq->qcnt) < 2 && !swcq->cmdq_mode) {
-		reason = -1;
-		goto out;
+	if (atomic_read(&swcq->qcnt) < 3 && !swcq->cmdq_mode) {
+			reason = -1;
+			goto out;
 	}
 
 	if (swcq->cmdq_mode) {
@@ -1991,11 +1974,6 @@ static void check_cmdq_timer(struct timer_list *t)
 					swcq->check_slot[j].blocks = mrq->data->blocks;
 					cur_checksum += swcq->check_slot[j].blk_addr;
 					j++;
-			} else if (mrq) {
-				result = false;
-				reason = 6;
-				spin_unlock_irqrestore(&swcq->lock, flags);
-				goto out;
 			}
 		}
 		spin_unlock_irqrestore(&swcq->lock, flags);
@@ -2030,15 +2008,11 @@ static void check_cmdq_timer(struct timer_list *t)
 				"real_next_addr:%d\n",
 				check_slot->blk_addr, check_slot->blocks,
 				expect_blk_addr, real_blk_addr);
-				if (expect_blk_addr == real_blk_addr) {
-					result = false;
-					reason = 7;
+				if (expect_blk_addr != real_blk_addr) {
+					result = true;
+					reason = 4;
 					break;
 				}
-			} else {
-				result = true;
-				reason = 4;
-				break;
 			}
 		}
 	}
@@ -2059,7 +2033,6 @@ out:
 		pr_info("mmc0 read:%d write:%d reason:%d",
 		atomic_read(&swcq->read_cnt),
 		atomic_read(&swcq->write_cnt), reason);
-		swcq->debug1++;
 	}
 
 	atomic_set(&swcq->read_cnt, 0);
@@ -2101,13 +2074,12 @@ static int sprd_swcq_cmd_show(struct seq_file *m, void *v)
 
 		} else if (swcq->cmd_history[j].type == 2) {
 			seq_printf(m, "[%d] time_sec:%lld, time_usec:%lld issue next:%d, "
-			"skip:%d pid:%d mrq:0x%p blocks:%d addr=%d qcnt:%d cmdq_cnt:%d flags:0x%x"
+			"skip:%d pid:%d blocks:%d mrq:0x%p qcnt:%d cmdq_cnt:%d flags:0x%x"
 			" task_id_index:0x%x\n",
 			i, swcq->cmd_history[j].time_sec, swcq->cmd_history[j].time_usec,
-			swcq->cmd_history[j].arg, swcq->cmd_history[j].skip,
-			swcq->cmd_history[j].pid, swcq->cmd_history[j].mrq,
-			swcq->cmd_history[j].blocks, swcq->cmd_history[j].blocks ?
-			swcq->cmd_history[j].mrq->data->blk_addr : 0,
+			swcq->cmd_history[j].arg,
+			swcq->cmd_history[j].skip, swcq->cmd_history[j].pid,
+			swcq->cmd_history[j].blocks, swcq->cmd_history[j].mrq,
 			swcq->cmd_history[j].qcnt, swcq->cmd_history[j].cmdq_cnt,
 			swcq->cmd_history[j].flags, swcq->cmd_history[j].task_id_index);
 
@@ -2248,7 +2220,6 @@ int mmc_swcq_init(struct mmc_swcq *swcq, struct mmc_host *mmc)
 	swcq->mmc->cqe_private = swcq;
 	mmc_swcq_ops.android_kabi_reserved1 = (u64)mmc_swcq_is_busy;
 	mmc->cqe_ops = &mmc_swcq_ops;
-	queue_flag = false;
 
 	swcq->num_slots = SWCQ_NUM_SLOTS;
 	swcq->next_tag = SWCQ_INVALID_TAG;
@@ -2330,7 +2301,6 @@ int mmc_swcq_init(struct mmc_swcq *swcq, struct mmc_host *mmc)
 	swcq->timer_running = false;
 	swcq->mode_need_change = true;
 	swcq->pump_busy = false;
-	swcq->recovery_cnt = 0;
 	sprd_create_swcq_proc_init();
 	pr_notice("[notice] swcq init finish.\n");
 

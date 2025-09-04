@@ -9,7 +9,6 @@
 #include <linux/devfreq-event.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <linux/sprd_soc_id.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -22,64 +21,7 @@
 
 LIST_HEAD(apsys_dvfs_head);
 
-bool get_display_power_status(void)
-{
-	struct device_node *dpu_node;
-	struct platform_device *dpu_pdev;
-	struct sprd_dpu_crtc *sprd_dpu;
-
-	dpu_node = of_find_node_by_name(NULL, "dpu");
-	if (!dpu_node) {
-		pr_err("failed to get dpu node\n");
-		return false;
-	}
-
-	dpu_pdev = of_find_device_by_node(dpu_node);
-	if (!dpu_pdev) {
-		pr_err("failed to get dpu platform device\n");
-		of_node_put(dpu_node);
-		return false;
-	}
-
-	sprd_dpu = dev_get_drvdata(&dpu_pdev->dev);
-	if (!sprd_dpu->crtc->state->active) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		of_node_put(dpu_node);
-		platform_device_put(dpu_pdev);
-		return false;
-	}
-
-	of_node_put(dpu_node);
-	platform_device_put(dpu_pdev);
-
-	return true;
-}
-
 struct class *dvfs_class;
-struct regmap *regmap_aon_base;
-bool n6pro_AA_flag;
-
-int n6pro_soc_ver_id_check(void)
-{
-	int ret;
-	u32 ver_id;
-
-	ret = sprd_get_soc_id(AON_VER_ID, &ver_id, 1);
-	if (ret) {
-		pr_err("fail to get soc id\n");
-		return 0;
-	}
-	if (ver_id == 0)
-		pr_info("n6pro soc is AA\n");
-	else if (ver_id == 1)
-		pr_info("n6pro soc is AB\n");
-	else {
-		pr_info("unknowned soc\n");
-		ver_id = 0;
-	}
-
-	return ver_id;
-}
 
 struct apsys_dev *find_apsys_device_by_name(char *name)
 {
@@ -97,17 +39,10 @@ struct apsys_dev *find_apsys_device_by_name(char *name)
 			pr_err("cannot find platform device by node with name :%s\n", name);
 	} else {
 		pr_err("cannot find node by name :%s\n", name);
-		return NULL;
 	}
 
-	if (apsys) {
-		pr_info("find platform device by node with name :%s, address:%lx\n",
-					name, apsys->apsys_base);
-	} else {
-		pr_err("find apsys device failed, apsys is NULL!\n");
-		dump_stack();
-	}
-
+	pr_info("find platform device by node with name :%s, address:%lx\n",
+				name, apsys->apsys_base);
 	return apsys;
 }
 
@@ -322,14 +257,6 @@ static int apsys_dvfs_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (!strcmp("qogirn6pro", pdata->version)) {
-		if (!n6pro_soc_ver_id_check()) {
-			pr_err("apsys : %s soc is AA,bypass\n", pdata->version);
-			n6pro_AA_flag = true;
-			return -EINVAL;
-		}
-	}
-
 	if (of_address_to_resource(np, 0, &r)) {
 		pr_err("parse apsys base address failed\n");
 		return -ENODEV;
@@ -372,27 +299,18 @@ static int apsys_dvfs_remove(struct platform_device *pdev)
 
 static const struct sprd_apsys_dvfs_ops qogirl6_apsys_ops = {
 	.apsys_ops = &qogirl6_apsys_dvfs_ops,
-	.version = "qogirl6",
 };
 
 static const struct sprd_apsys_dvfs_ops roc1_apsys_ops = {
 	.apsys_ops = &roc1_apsys_dvfs_ops,
-	.version = "roc1",
 };
 
 static const struct sprd_apsys_dvfs_ops sharkl5pro_apsys_ops = {
 	.apsys_ops = &sharkl5pro_apsys_dvfs_ops,
-	.version = "sharkl5pro",
 };
 
 static const struct sprd_apsys_dvfs_ops sharkl5_apsys_ops = {
 	.apsys_ops = &sharkl5_apsys_dvfs_ops,
-	.version = "sharkl5",
-};
-
-static const struct sprd_apsys_dvfs_ops qogirn6pro_apsys_ops = {
-	.apsys_ops = &qogirn6pro_apsys_dvfs_ops,
-	.version = "qogirn6pro",
 };
 
 /*
@@ -410,8 +328,6 @@ static const struct of_device_id apsys_dvfs_of_match[] = {
 	  .data = &sharkl5pro_apsys_ops },
 	{ .compatible = "sprd,hwdvfs-apsys-qogirl6",
 	  .data = &qogirl6_apsys_ops },
-	{ .compatible = "sprd,hwdvfs-dpuvsp-qogirn6pro",
-	  .data = &qogirn6pro_apsys_ops },
 	{ },
 };
 
@@ -450,10 +366,8 @@ static int __init apsys_dvfs_register(void)
 	int i, ret;
 
 	ret = platform_driver_register(&apsys_dvfs_driver);
-	if (n6pro_AA_flag) {
-		pr_info("%s() n6pro aa does not need dvfs, skip other probe\n", __func__);
-		return -1;
-	}
+	if (ret)
+		return ret;
 
 	for (i = 0; i < ARRAY_SIZE(sprd_apsys_dvfs_drivers); i++) {
 		ret = devfreq_add_governor(sprd_apsys_dvfs_governors[i]);

@@ -14,7 +14,6 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #ifdef CONFIG_WCN_INTEG
-#include "wcn_integrate.h"
 #include "gnss.h"
 #endif
 #include <linux/kthread.h>
@@ -36,7 +35,21 @@
 #include "gnss_dump.h"
 #include "wcn_gnss_dump.h"
 
-void debug_bus_show(char *show);
+
+enum {
+	REGMAP_AON_APB = 0x0,	/* AON APB */
+	REGMAP_PMU_APB,
+	/*
+	 * NOTES:SharkLE use it,but PIKE2 not.
+	 * We should config the DTS for PIKE2 also.
+	 */
+	REGMAP_PUB_APB, /* SharkLE only:for ddr offset */
+	REGMAP_ANLG_WRAP_WCN,
+	REGMAP_ANLG_PHY_G5, /* SharkL3 only */
+	REGMAP_ANLG_PHY_G6, /* SharkLE only */
+	REGMAP_WCN_REG,	/* SharkL3 only:0x403A 0000 */
+	REGMAP_TYPE_NR,
+};
 
 #define GNSS_DUMP_END_STRING "gnss_memdump_finish"
 #ifdef CONFIG_WCN_INTEG
@@ -159,24 +172,10 @@ static struct cp_reg_dump cp_reg[] = {
 #define GNSS_DUMP_REG_NUMBER 4
 #endif
 static char gnss_dump_level; /* 0: default, all, 1: only data, pmu, aon */
-static char gnss_pll_switch_flag = 1;/*0:switch fail, 1:switch suc*/
-extern struct wcn_device_manage s_wcn_device;
+
 #endif
 
 #ifdef CONFIG_WCN_INTEG
-static u32 cgm_gnss_clk_gate_en = 1;
-#define CGM_GNSS_MTX_GATE_EN 0x2
-void gnss_set_clk_gate_en(u32 flag)
-{
-	cgm_gnss_clk_gate_en = flag;
-}
-
-u32 gnss_get_clk_gate_en(void)
-{
-	GNSSDUMP_INFO("cgm_gnss_clk_gate_en=%x\n", cgm_gnss_clk_gate_en);
-	return cgm_gnss_clk_gate_en;
-}
-
 static void gnss_write_data_to_phy_addr(phys_addr_t phy_addr,
 					      void *src_data, u32 size)
 {
@@ -293,29 +292,6 @@ static void gnss_hold_cpu(void)
 		GNSSDUMP_ERR("%s gnss cache failed value %x\n", __func__,
 			value);
 	msleep(200);
-}
-static void get_gnss_pll_switch_state(void)
-{
-	struct wcn_device *wcn_dev;
-	phys_addr_t phy_addr;
-	struct wcn_dfs_sync_info dfs_info;
-
-	wcn_dev = s_wcn_device.gnss_device;
-	phy_addr = wcn_dev->base_addr - WCN_GNSS_DDR_OFFSET
-				+ WCN_SYS_DFS_SYNC_ADDR_OFFSET;
-	gnss_read_data_from_phy_addr(phy_addr, &dfs_info,
-				sizeof(struct wcn_dfs_sync_info));
-	GNSSDUMP_INFO("gnss_dfs_info: 0x%x-0x%x-0x%x\n",
-			dfs_info.gnss_dfs_info, dfs_info.debugdfs0,
-			dfs_info.debugdfs1);
-	/*debugdfs1[27]:dfs_done*/
-	if (dfs_info.debugdfs1 & (1 << 27)) {
-		gnss_pll_switch_flag = 1;
-		return;
-	}
-	/*gnss not switch pll*/
-	GNSSDUMP_INFO("gnss not switch pll");
-	gnss_pll_switch_flag = 0;
 }
 static int gnss_dump_cp_register_data(u32 addr, u32 len)
 {
@@ -593,52 +569,15 @@ static int gnss_dump_share_memory(u32 len)
 #endif
 	return 0;
 }
-
-static int gnss_dump_dummy(int len)
-{
-	void  *apreg_buffer = NULL;
-	int count;
-
-	apreg_buffer = vmalloc(len);
-	if (!apreg_buffer)
-		return -2;
-	memset(apreg_buffer, 0xAA, len);
-	count = gnss_dump_data(apreg_buffer, len);
-	vfree(apreg_buffer);
-	if (count != len) {
-		GNSSDUMP_ERR("%s failed size is %d\n", __func__, count);
-		return -1;
-	}
-	GNSSDUMP_INFO("%s %d ok!\n", __func__, count);
-	return 0;
-}
 static int gnss_integrated_dump_mem(void)
 {
 	int ret = 0;
-	int dummy_len = 0;
-	uint gnss_sleep_flag = 0;
+
 	GNSSDUMP_INFO("gnss_dump_mem entry\n");
 
-	if (wcn_platform_chip_type() == WCN_PLATFORM_TYPE_QOGIRL6) {
-		get_gnss_pll_switch_state();
-		/*gnss dont dump unless pll switch done*/
-		if (gnss_pll_switch_flag == 0)
-			return ret;
-		debug_bus_show("GNSS DUMP READ DEBUGBUS");
-		gnss_sleep_flag = (!(gnss_get_clk_gate_en()&CGM_GNSS_MTX_GATE_EN))
-			&& (gnss_sys_is_deepsleep_status(s_wcn_device.gnss_device));
-		if (!gnss_sleep_flag)
-			gnss_hold_cpu();
-	}
+	if (wcn_platform_chip_type() == WCN_PLATFORM_TYPE_QOGIRL6)
+		gnss_hold_cpu();
 	ret = gnss_dump_share_memory(GNSS_SHARE_MEMORY_SIZE);
-	if (wcn_platform_chip_type() == WCN_PLATFORM_TYPE_QOGIRL6) {
-		if (gnss_sleep_flag) {
-			dummy_len = 32768+131072+84+740+1068+100;
-			ret = gnss_dump_dummy(dummy_len);
-			GNSSDUMP_INFO("%s : gnss only dump DDR/SIPC data!!!\n", __func__);
-			return ret;
-		}
-	}
 	gnss_dump_iram();
 	gnss_dump_register();
 	GNSSDUMP_INFO("%s finish\n", __func__);
@@ -672,6 +611,7 @@ static int gnss_ext_dump_data(unsigned int start_addr, int len)
 	u8 *buf = NULL;
 	int ret = 0;
 	//, count = 0, trans = 0;
+	void  *iram_buffer = NULL;
 	mm_segment_t fs;
 
 	GNSSDUMP_INFO("%s, addr:%x,len:%d\n", __func__, start_addr, len);
@@ -681,6 +621,14 @@ static int gnss_ext_dump_data(unsigned int start_addr, int len)
 		return -ENOMEM;
 	}
 
+	iram_buffer = vmalloc(len);
+	if (!iram_buffer) {
+		GNSSDUMP_ERR("%s vmalloc iram_buffer error\n", __func__);
+		kfree(buf);
+		return -ENOMEM;
+	}
+	memset(iram_buffer, 0, len);
+
 	ret = sprdwcn_bus_direct_read(start_addr, buf, len);
 
 	fs = get_fs();
@@ -689,6 +637,8 @@ static int gnss_ext_dump_data(unsigned int start_addr, int len)
 		GNSSDUMP_ERR("%s read error:%d\n", __func__, ret);
 		goto dump_data_done;
 	}
+
+	memcpy(iram_buffer, buf, len);
 
 	ret = gnss_dump_data(buf, len);
 	if (ret != len) {

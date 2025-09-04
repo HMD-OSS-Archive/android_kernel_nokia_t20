@@ -59,7 +59,6 @@
 			capacity-dmips-mhz = <417>;
 			dynamic-power-coefficient = <155>;
 			cpufreq-data-v1 = <&cpufreq_cluster0>;
-			#cooling-cells = <2>;
 			sugov_slack_timer;
 		};
 		CPU1: cpu@100 {
@@ -101,7 +100,6 @@
 			capacity-dmips-mhz = <1022>;
 			dynamic-power-coefficient = <721>;
 			cpufreq-data-v1 = <&cpufreq_cluster1>;
-			#cooling-cells = <2>;
 		};
 		CPU5: cpu@500 {
 			device_type = "cpu";
@@ -132,31 +130,36 @@
 			capacity-dmips-mhz = <1024>;
 			dynamic-power-coefficient = <896>;
 			cpufreq-data-v1 = <&cpufreq_cluster2>;
-			#cooling-cells = <2>;
 		};
 	};
 
 	cpufreq_cluster0: cpufreq-cluster0 {
-		sprd,voltage-step = <750000>;		/* uV       */
-		sprd,voltage-margin = <40>;		/* Cycle    */
-		sprd,transition-delay = <1000>;		/* us       */
-		sprd,temp-threshold = <65>;		/* u32 list */
-		sprd,cluster-cpumask = <0xf>;
+		//nvmem-cells = <&dvfs_bin_cpu0>;
+		//nvmem-cell-names = "dvfs_bin";
+		voltage-step = <750000>;		/* uV       */
+		voltage-margin = <40>;			/* Cycle    */
+		boost-duration = <60>;			/* s        */
+		transition-delay = <1000>;		/* us       */
+		//temp-threshold = <65>;		/* u32 list */
 	};
 
 	cpufreq_cluster1: cpufreq-cluster1 {
-		sprd,voltage-step = <750000>;		/* uV       */
-		sprd,voltage-margin = <40>;		/* Cycle    */
-		sprd,transition-delay = <1000>;		/* us       */
-		sprd,temp-threshold = <65>;		/* u32 list */
-		sprd,cluster-cpumask = <0x70>;
+		//nvmem-cells = <&dvfs_bin_cpu1>;
+		//nvmem-cell-names = "dvfs_bin";
+		voltage-step = <750000>;		/* uV       */
+		voltage-margin = <40>;			/* Cycle    */
+		boost-duration = <60>;			/* s        */
+		transition-delay = <1000>;		/* us       */
+		//temp-threshold = <65>;		/* u32 list */
 	};
 
 	cpufreq_cluster2: cpufreq-cluster2 {
-		sprd,voltage-margin = <40>;		/* Cycle    */
-		sprd,transition-delay = <1000>;		/* us       */
-		sprd,temp-threshold = <65>;		/* u32 list */
-		sprd,cluster-cpumask = <0x80>;
+		//nvmem-cells = <&dvfs_bin_cpu2>;
+		//nvmem-cell-names = "dvfs_bin";
+		voltage-margin = <40>;			/* Cycle    */
+		boost-duration = <60>;			/* s        */
+		transition-delay = <1000>;		/* us       */
+		//temp-threshold = <65>;		/* u32 list */
 	};
 
 	psci {
@@ -165,17 +168,12 @@
 	};
 
 	debug_log: debuglog {
-		compatible                        = "sprd,debuglog";
-		sprd,pdbg-irq-domain-gic          = "GICv3";
-		sprd,pdbg-irq-domain-gpio         = "sprd-gpio";
-		sprd,pdbg-irq-domain-ana          = "spi4.0";
-		sprd,pdbg-irq-domain-ana-eic      = "sc27xx-eic";
-		sprd,pdbg-irq-domain-ap-eic-sync  = "642000c0.gpio";
-	};
+		compatible = "sprd,debuglog-sharkl6pro";
 
-	debug_stat: debugstat {
-		compatible = "sprd,debugstat";
-		soc_slp_cnt_reg = <&pmu_apb_regs REG_PMU_APB_PUB_DEEP_SLEEP_CNT 0xff>;
+		sprd,sys-ap-ahb = <&ap_ahb_regs>;
+		sprd,sys-ap-apb = <&ap_apb_regs>;
+		sprd,sys-pmu-apb = <&pmu_apb_regs>;
+		sprd,sys-aon-apb = <&aon_apb_regs>;
 	};
 
 	idle-states {
@@ -249,24 +247,13 @@
 			<GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
-	gsp0: sprd-gsp0@31100000 {
+	gsp: sprd-gsp {
 		compatible = "sprd,gsp-r9p0-qogirn6pro";
 		reg = <0 0x30130000 0 0x300>;
-		name = "sprd-gsp0";
+		name = "sprd-gsp";
 		core-cnt = <1>;
 		io-cnt = <7>;
-		cores = <&gsp0_core0>;
-
-		#power-domain-cells = <0>;
-		power-domains = <&vpu_pd_top>;
-	};
-
-	gsp1: sprd-gsp1@31200000 {
-		compatible = "sprd,gsp-lite-r4p0-qogirn6pro";
-		name = "sprd-gsp1";
-		core-cnt = <1>;
-		io-cnt = <7>;
-		cores = <&gsp1_core0>;
+		cores = <&gsp_core0>;
 
 		#power-domain-cells = <0>;
 		power-domains = <&vpu_pd_top>;
@@ -279,7 +266,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		g1_pll: g1-pll {
@@ -344,7 +330,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		ap_clk: clock-controller@20010000 {
@@ -361,23 +346,21 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		aonapb_gate: aonapb-gate {
 			compatible = "sprd,ums9620-aon-gate";
 			sprd,syscon = <&aon_apb_regs>; /* 0x64900000 */
-			clocks = <&ext_26m>, <&ext_32k>;
-			clock-names = "ext-26m", "ext-32k";
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		aonapb_clk: clock-controller@64920000 {
 			compatible = "sprd,ums9620-aonapb-clk";
 			reg = <0 0x64920000 0 0x3000>;
-			clocks = <&ext_26m>, <&ext_52m>, <&ext_32k>, <&rco_100m>, <&rco_60m>;
-			clock-names = "ext-26m", "ext-52m", "ext-32k", "rco-100m", "rco-60m";
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
 			#clock-cells = <1>;
 		};
 
@@ -389,13 +372,28 @@
 			#clock-cells = <1>;
 		};
 
+		gpuapb_gate: gpuapb-gate {
+			compatible = "sprd,ums9620-gpuapb-gate";
+			sprd,syscon = <&gpu_apb_regs>; /* 0x23000000 */
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
+			#clock-cells = <1>;
+		};
+
+		gpu_clk: clock-controller@23010000 {
+			compatible = "sprd,ums9620-gpu-clk";
+			reg = <0 0x23010000 0 0x3000>;
+			clocks = <&ext_26m>;
+			clock-names = "ext-26m";
+			#clock-cells = <1>;
+		};
+
 		ipaapb_gate: ipaapb-gate {
 			compatible = "sprd,ums9620-ipaapb-gate";
 			sprd,syscon = <&ipa_apb_regs>; /* 0x25000000 */
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		ipa_clk: clock-controller@25010000 {
@@ -412,7 +410,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		ipadispc_gate: clock-controller@31800000 {
@@ -421,7 +418,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext_26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		pcieapb_gate: clock-controller@26000000 {
@@ -430,7 +426,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 			status = "disable";
 		};
 
@@ -449,7 +444,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		ai_clk: clock-controller@27004000 {
@@ -477,7 +471,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		mm_clk: clock-controller@30010000 {
@@ -494,7 +487,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		dpu_vsp_clk: clock-controller@30110000 {
@@ -511,7 +503,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		audcpapb_gate: clock-controller@56390000 {
@@ -520,7 +511,6 @@
 			clocks = <&ext_26m>;
 			clock-names = "ext-26m";
 			#clock-cells = <1>;
-			#reset-cells = <1>;
 		};
 
 		/*    etm
@@ -876,8 +866,9 @@
 		};
 	};
 	ddr_dfs: scene-frequency {
-		compatible = "sprd,ddr-dvfs";
+		compatible = "sprd,dfs";
 		freq-num = <8>;
+		backdoor = <2133>;
 	};
 };
 
@@ -939,6 +930,12 @@
 	clock-names = "enable", "i2c", "source";
 	clocks = <&apahb_gate CLK_I2C9_EB>,
 		 <&ap_clk CLK_AP_I2C9>, <&ext_26m>;
+};
+
+&sdio0 {
+	clock-names = "sdio_clk", "sdio_clk_source","sdio_ahb_enable";
+	clocks = <&aonapb_clk CLK_SDIO0_2X>,
+		 <&g1_pll CLK_RPLL_390M>, <&apahb_gate CLK_SDIO0_EB>;
 };
 
 &spi0 {
@@ -1024,30 +1021,12 @@
 		<&dpu_vsp_gate CLK_DPU_EB>;
 };
 
-&gsp0_core0 {
-	clock-names = "clk_src_512m",
-			"clk_gsp0_eb",
-			"clk_dpuvsp_eb",
-			"clk_gsp0";
+&gsp_core0 {
+	clock-names =	"clk_gsp_eb",
+			"clk_dpuvsp_eb";
 
-	clocks = <&g5l_pll CLK_TGPLL_512M>,
-			<&dpu_vsp_gate CLK_GSP0_EB>,
-			<&aonapb_gate CLK_DPU_VSP_EB>,
-			<&dpu_vsp_clk CLK_GSP0>;
-
-	sprd,pmu-apb = <&pmu_apb_regs>;
-};
-
-&gsp1_core0 {
-	clock-names = "clk_src_512m",
-			"clk_gsp1_eb",
-			"clk_dpuvsp_eb",
-			"clk_gsp1";
-
-	clocks = <&g5l_pll CLK_TGPLL_512M>,
-			<&dpu_vsp_gate CLK_GSP1_EB>,
-			<&aonapb_gate CLK_DPU_VSP_EB>,
-			<&dpu_vsp_clk CLK_GSP1>;
+	clocks = <&dpu_vsp_gate CLK_GSP0_EB>,
+		 <&aonapb_gate CLK_DPU_VSP_EB>;
 };
 
 &vpu_dec {
@@ -1123,11 +1102,12 @@
 
 &gpu {
 	clocks = <&aonapb_gate CLK_GPU_EB>,
+	<&gpu_clk CLK_GPU_CORE_EB>,
 	<&g1_pll CLK_RPLL_26M>,
 	<&g5l_pll CLK_TGPLL_76M8>,
 	<&g5l_pll CLK_TGPLL_153M6>,
 	<&g5l_pll CLK_TGPLL_384M>,
 	<&g5l_pll CLK_TGPLL_512M>,
-	<&g5r_pll CLK_GPLL>,
+	<&g5r_pll CLK_GPLL_680M>,
 	<&g5r_pll CLK_GPLL_850M>;
 };

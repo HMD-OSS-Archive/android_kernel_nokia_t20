@@ -8,13 +8,7 @@
  */
 
 #undef TRACE_SYSTEM
-/* *
- * the buildin DWC3 set TRACE_SYSTEM to dwc3,
- * We need to set TRACE_SYSTEM to another name,
- * if not, GSI_GKI replacement test will report
- * trace file already loaded error
- */
-#define TRACE_SYSTEM dwc3_sprd
+#define TRACE_SYSTEM dwc3
 
 #if !defined(__DWC3_TRACE_H) || defined(TRACE_HEADER_MULTI_READ)
 #define __DWC3_TRACE_H

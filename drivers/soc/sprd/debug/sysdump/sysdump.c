@@ -91,7 +91,6 @@ static unsigned int pmic_reg;
 #define MINIDUMP_MAGIC	"SPRD_MINIDUMP"
 #define REG_SP_INDEX	31
 #define REG_PC_INDEX	32
-#define REG_MEM_SIZE	(PAGE_SIZE * 2)
 extern void stext(void);
 struct pt_regs pregs_die_g;
 struct pt_regs minidump_regs_g;
@@ -116,7 +115,7 @@ struct minidump_info  minidump_info_g =	{
 #endif
 	},
 	.regs_memory_info		=	{
-		.per_reg_memory_size	=	REG_MEM_SIZE,
+		.per_reg_memory_size	=	256,
 		.valid_reg_num	=	0,
 	},
 	.section_info_total		=	{
@@ -146,7 +145,7 @@ static int prepare_minidump_info(struct pt_regs *regs);
 static struct info_desc minidump_info_desc_g;
 static int prepare_exception_info(struct pt_regs *regs,
 			struct task_struct *tsk, const char *reason);
-char *ylog_buffer;
+static char *ylog_buffer;
 #endif /*	minidump code end	*/
 typedef char note_buf_t[SYSDUMP_NOTE_BYTES];
 
@@ -342,7 +341,6 @@ int minidump_save_extend_information(const char *name, unsigned long paddr_start
 		pr_err("The name is empty, invalid!!\n");
 		return -1;
 	}
-	memset(str_name, 0, SECTION_NAME_MAX);
 	memcpy(str_name, name, strlen(name));
 	for (j = 0; j < (int)strlen(str_name); j++) {
 		tmp = str_name[j];
@@ -361,12 +359,11 @@ int minidump_save_extend_information(const char *name, unsigned long paddr_start
 
 	mutex_lock(&section_mutex);
 	/* check insert repeatly and acquire total seciton num before insert new section */
-	snprintf(str_name, SECTION_NAME_MAX, "%s_%s", EXTEND_STRING, name);
 	for (i = 0; i < SECTION_NUM_MAX; i++) {
-		if (!strcmp(str_name,
-				minidump_info_g.section_info_total.section_info[i].section_name)) {
+		if (!memcmp(str_name,
+				minidump_info_g.section_info_total.section_info[i].section_name,
+				strlen(str_name))) {
 			mutex_unlock(&section_mutex);
-			pr_err("the name:%s has been used!!,please use a new name!\n", name);
 			return -1;
 		}
 		if (!strlen(minidump_info_g.section_info_total.section_info[i].section_name))
@@ -382,7 +379,7 @@ int minidump_save_extend_information(const char *name, unsigned long paddr_start
 	}
 	/* add new section in the tail of section_info */
 	extend_section = &minidump_info_g.section_info_total.section_info[index];
-	snprintf(extend_section->section_name, SECTION_NAME_MAX, "%s_%s", EXTEND_STRING, name);
+	sprintf(extend_section->section_name, "%s_%s", EXTEND_STRING, name);
 	if (vaddr_to_paddr_flag == 0) {
 		extend_section->section_start_vaddr = (unsigned long)__va(paddr_start);
 		extend_section->section_end_vaddr = (unsigned long)__va(paddr_end);
@@ -394,7 +391,7 @@ int minidump_save_extend_information(const char *name, unsigned long paddr_start
 		minidump_info_g.section_info_total.total_size += extend_section->section_size;
 		minidump_info_g.minidump_data_size += extend_section->section_size;
 	}
-	pr_info("%s added successfully in minidump section:paddr_start=%lx,paddr_end=%lx\n",
+	pr_emerg("%s added successfully in minidump section:paddr_start=%lx,paddr_end=%lx\n",
 			name, paddr_start, paddr_end);
 	minidump_info_g.section_info_total.total_num++;
 	mutex_unlock(&section_mutex);
@@ -425,14 +422,13 @@ int minidump_change_extend_information(const char *name, unsigned long paddr_sta
 	if (strlen(name) > (SECTION_NAME_MAX - strlen(EXTEND_STRING) - 1))
 		return -1;
 
-	memset(str_name, 0, SECTION_NAME_MAX);
-	snprintf(str_name, SECTION_NAME_MAX, "%s_%s", EXTEND_STRING, name);
+	sprintf(str_name, "%s_%s", EXTEND_STRING, name);
 
 	for (i = 0; i < SECTION_NUM_MAX; i++) {
 		if (!strlen(minidump_info_g.section_info_total.section_info[i].section_name))
 			return -1;
-		if (!strcmp(minidump_info_g.section_info_total.section_info[i].section_name,
-					str_name))
+		if (!memcmp(minidump_info_g.section_info_total.section_info[i].section_name, str_name,
+					strlen(str_name)))
 			break;
 	}
 	if (i >= SECTION_NUM_MAX)
@@ -670,7 +666,7 @@ static void sysdump_prepare_info(int enter_id, const char *reason,
 		 reason, sprd_sysdump_info->crash_key);
 	ktime_get_ts64(&ts);
 	rtc_time_to_tm(ts.tv_sec, &tm);
-	snprintf(sprd_sysdump_info->time, 32, "%04d-%02d-%02d_%02d:%02d:%02d",
+	sprintf(sprd_sysdump_info->time, "%04d-%02d-%02d_%02d:%02d:%02d",
 		tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour,
 		tm.tm_min, tm.tm_sec);
 
@@ -731,10 +727,8 @@ static int sysdump_panic_event(struct notifier_block *self,
 	sprd_debug_save_context();
 
 #ifdef CONFIG_SPRD_SIPC
-	if (!(reason != NULL && strstr(reason, "cpcrash"))) {
+	if (!(reason != NULL && strstr(reason, "cpcrash")))
 		smsg_senddie(SIPC_ID_LTE);
-		smsg_senddie(SIPC_ID_PM_SYS);
-	}
 #endif
 
 	smp_send_stop();
@@ -898,6 +892,7 @@ static ssize_t sprd_sysdump_write(struct file *file, const char __user *buf,
 				size_t count, loff_t *data)
 {
 	char sysdump_buf[SYSDUMP_PROC_BUF_LEN] = {0};
+	int *test = NULL;
 
 	pr_debug("%s: start!!!\n", __func__);
 	if (count && (count < SYSDUMP_PROC_BUF_LEN)) {
@@ -915,6 +910,12 @@ static ssize_t sprd_sysdump_write(struct file *file, const char __user *buf,
 			pr_info("%s: disable user version sysdump!!!\n",
 				__func__);
 			set_sysdump_enable(0);
+		} else if (!strncmp(sysdump_buf, "bug", 3)) {
+			pr_info("%s  bug-on !!\n", __func__);
+			BUG_ON(1);
+		} else if (!strncmp(sysdump_buf, "null", 4)) {
+			pr_info("%s  null pointer !!\n", __func__);
+			count = *test;
 		}
 	}
 
@@ -1399,7 +1400,7 @@ static int ylog_buffer_init(void)
 		return -1;
 	}
 	pr_info("%s: ylog_buffer vaddr is %p\n", __func__, ylog_buffer);
-	snprintf(ylog_buffer, YLOG_BUF_SIZE, "%s", "This is ylog buffer. Now , it is nothing . ");
+	sprintf(ylog_buffer, "%s", "This is ylog buffer. Now , it is nothing . ");
 	/*here, we can add something to head to check if data is ok */
 	SetPageReserved(virt_to_page(ylog_buffer));
 	ret = misc_register(&misc_dev_ylog);
@@ -1657,20 +1658,6 @@ static void minidump_addr_convert(int i)
 		(int)(minidump_info_g.section_info_total.section_info[i].section_end_paddr -
 		minidump_info_g.section_info_total.section_info[i].section_start_paddr);
 }
-static void update_vmcoreinfo_data(void)
-{
-	if (!sprd_sysdump_info)
-		return;
-	vmcoreinfo_append_str("SYMBOL(%s)=%d\n", "processor_id",
-		smp_processor_id());
-	vmcoreinfo_append_str("SYMBOL(%s)=%d\n", "per_cpu_offset",
-		sprd_sysdump_info->sprd_mmuregs_info.sprd_pcpu_offset);
-	vmcoreinfo_append_str("SYMBOL(%s)=0x%llx\n", "core_regs_id",
-		sprd_sysdump_info->sprd_coreregs_info.paddr_core_regs_t);
-	vmcoreinfo_append_str("SYMBOL(%s)=0x%llx\n", "per_cpu_start",
-		sprd_sysdump_info->sprd_coreregs_info.pcpu_start_paddr);
-
-}
 static void minidump_info_init(void)
 {
 	int i;
@@ -1743,9 +1730,6 @@ static __init int sysdump_early_init(void)
 
 	minidump_info_init();
 
-	/* last kmsg init */
-	last_kmsg_init();
-
 	return 0;
 }
 early_initcall(sysdump_early_init);
@@ -1790,7 +1774,6 @@ static int sysdump_sysctl_init(void)
 #ifdef CONFIG_SPRD_MINI_SYSDUMP
 	minidump_init();
 #endif
-	update_vmcoreinfo_data();
 	return 0;
 }
 void sysdump_sysctl_exit(void)
@@ -1807,9 +1790,6 @@ void sysdump_sysctl_exit(void)
 #ifdef CONFIG_SPRD_MINI_SYSDUMP
 	ylog_buffer_exit();
 #endif
-
-	/* last kmsg exit */
-	last_kmsg_exit();
 }
 
 late_initcall_sync(sysdump_sysctl_init);

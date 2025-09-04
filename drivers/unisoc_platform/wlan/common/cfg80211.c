@@ -128,8 +128,10 @@ static void cfg80211_do_work(struct work_struct *work)
 		spin_unlock_bh(&priv->work_lock);
 
 		vif = sprd_work->vif;
-		netdev_dbg(vif->ndev, "process delayed work: %d\n",
-			   sprd_work->id);
+		if (vif)
+			netdev_dbg(vif->ndev, "process delayed work: %d\n", sprd_work->id);
+		else
+			pr_debug("process delayed work: %d\n", sprd_work->id);
 
 		switch (sprd_work->id) {
 		case SPRD_WORK_REG_MGMT:
@@ -396,6 +398,21 @@ int sprd_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
 	}
 
 	netdev_info(ndev, "%s type %d -> %d\n", __func__, old_type, type);
+	if (vif->mode == 0 && ((old_type == NL80211_IFTYPE_STATION && type == NL80211_IFTYPE_AP) ||
+		(old_type == NL80211_IFTYPE_AP && type == NL80211_IFTYPE_STATION))) {
+		pr_err("%s change iface but current mode 0!\n", __func__);
+		wiphy_info(wiphy, "Power on WCN (%d time)\n", atomic_read(&hif->power_cnt));
+		ret = sprd_iface_set_power(hif, true);
+		if (ret)
+			return ret;
+
+		pr_err("start to send softap open command\n");
+		vif->wdev.iftype = type;
+		ret = sprd_init_fw(vif);
+		if (!ret && type == NL80211_IFTYPE_AP)
+			netif_carrier_off(ndev);
+		return ret;
+	}
 
 	/*
 	 * hif->power_cnt = 1 means there is only one mode and all
@@ -410,8 +427,6 @@ int sprd_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
 	}
 
 	ret = sprd_uninit_fw(vif);
-	if (ret && type == NL80211_IFTYPE_AP)
-		vif->wdev.iftype = type;
 	if (!ret) {
 		vif->wdev.iftype = type;
 		ret = sprd_init_fw(vif);
@@ -423,6 +438,9 @@ int sprd_cfg80211_change_iface(struct wiphy *wiphy, struct net_device *ndev,
 		netdev_info(ndev, "block command finished, reset change_iface_block_cmd!\n");
 		atomic_set(&hif->change_iface_block_cmd, 0);
 	}
+
+	if (!ret && type == NL80211_IFTYPE_AP)
+		netif_carrier_off(ndev);
 
 	return ret;
 }
@@ -782,10 +800,10 @@ int sprd_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 	struct cmd_connect con = { 0 };
 	enum sprd_sm_state old_state = vif->sm_state;
 	bool ie_set_flag = false;
-	u16 center_freq = 0;
 	int is_wep = (sme->crypto.cipher_group == WLAN_CIPHER_SUITE_WEP40) ||
 	    (sme->crypto.cipher_group == WLAN_CIPHER_SUITE_WEP104);
 	int ret, i;
+	u16 center_freq = 0;
 
 	vif->is_5g_freq = 0;
 	/* workround for bug 795430 */
@@ -1388,7 +1406,8 @@ int sprd_init_fw(struct sprd_vif *vif)
 	vif->state |= VIF_STATE_OPEN;
 	sprd_hif_fill_all_buffer(&priv->hif);
 
-	if ((priv->hif.hw_type == SPRD_HW_SC2355_SDIO) &&
+	if ((priv->hif.hw_type == SPRD_HW_SC2355_SDIO ||
+		priv->hif.hw_type == SPRD_HW_SC2332_SIPC) &&
 		(vif->mode == SPRD_MODE_AP || vif->mode == SPRD_MODE_STATION)) {
 		ret = regulatory_hint(priv->wiphy, country_alpha);
 		netdev_info(vif->ndev, "%s type %d, mode %d, name %s, regulatory_hint ret = %d.\n",

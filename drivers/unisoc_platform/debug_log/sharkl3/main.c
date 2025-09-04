@@ -14,6 +14,8 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
+
 #include <dt-bindings/soc/sprd,sharkl3-mask.h>
 #include <dt-bindings/soc/sprd,sharkl3-regs.h>
 #include "../core.h"
@@ -66,6 +68,7 @@ static void dbg_phy_iso_sw_en(struct dbg_log_device *dbg, int h)
 
 static void inter_dbg_log_init(struct dbg_log_device *dbg)
 {
+	int ret;
 	DEBUG_LOG_PRINT("entry\n");
 
 	regmap_update_bits(dbg->aon_apb, REG_AON_APB_APB_EB2,
@@ -78,17 +81,16 @@ static void inter_dbg_log_init(struct dbg_log_device *dbg)
 
 	clk_prepare_enable(dbg->clk_serdes_eb);
 
-	/* power on */
-	regmap_update_bits(dbg->phy->pmu_apb,
-			   REG_PMU_APB_PD_MM_TOP_CFG,	/* 0x001c */
-			   MASK_PMU_APB_PD_MM_TOP_AUTO_SHUTDOWN_EN,
-			   ~MASK_PMU_APB_PD_MM_TOP_AUTO_SHUTDOWN_EN/* 0x1000000 */);
-	regmap_update_bits(dbg->phy->pmu_apb,
-			   REG_PMU_APB_PD_MM_TOP_CFG,
-			   MASK_PMU_APB_PD_MM_TOP_FORCE_SHUTDOWN,
-			   ~MASK_PMU_APB_PD_MM_TOP_FORCE_SHUTDOWN/* 0x2000000 */);
+	if (dbg->mm) {
+		pr_info("MIPI LOG use MM Power Domain\n");
+		ret = pm_runtime_get_sync(dbg->dev.parent);
+		if (ret < 0) {
+			pr_info("Sprd camera power on fail, ret = %d\n", ret);
+			pm_runtime_disable(dbg->dev.parent);
+			return;
+		}
+	}
 
-	usleep_range(1000, 1100);
 	dbg_phy_ps_pd_l(dbg, 1);
 	dbg_phy_ps_pd_s(dbg, 1);
 	dbg_phy_iso_sw_en(dbg, 1);
@@ -97,20 +99,19 @@ static void inter_dbg_log_init(struct dbg_log_device *dbg)
 
 static void inter_dbg_log_exit(struct dbg_log_device *dbg)
 {
+	int ret;
 	dbg_phy_exit(dbg->phy);
 	dbg_phy_iso_sw_en(dbg, 1);
 	dbg_phy_ps_pd_s(dbg, 1);
 	dbg_phy_ps_pd_l(dbg, 1);
-
-	/* power off */
-	regmap_update_bits(dbg->phy->pmu_apb,
-			   REG_PMU_APB_PD_MM_TOP_CFG,	/* 0x001c */
-			   MASK_PMU_APB_PD_MM_TOP_AUTO_SHUTDOWN_EN,
-			   ~MASK_PMU_APB_PD_MM_TOP_AUTO_SHUTDOWN_EN/* 0x1000000 */);
-	regmap_update_bits(dbg->phy->pmu_apb,
-			   REG_PMU_APB_PD_MM_TOP_CFG,
-			   MASK_PMU_APB_PD_MM_TOP_FORCE_SHUTDOWN,
-			   MASK_PMU_APB_PD_MM_TOP_FORCE_SHUTDOWN/* 0x2000000 */);
+	if (dbg->mm) {
+		ret = pm_runtime_put_sync(dbg->dev.parent);
+		if (ret < 0) {
+			pr_info("Power down fail, ret = %d\n", ret);
+			pm_runtime_disable(dbg->dev.parent);
+			return;
+		}
+	}
 
 	clk_disable_unprepare(dbg->clk_src[dbg->phy->clk_sel]);
 
@@ -197,7 +198,7 @@ static int dbg_log_probe(struct platform_device *pdev)
 	struct resource *res;
 	void __iomem *addr, *serdes_apb;
 	struct dbg_log_device *dbg;
-	struct regmap *aon_apb, *dsi_apb, *pll_apb, *pmu_apb;
+	struct regmap *aon_apb, *dsi_apb, *pll_apb;
 	int count, i, rc;
 
 	DEBUG_LOG_PRINT("entry\n");
@@ -230,13 +231,6 @@ static int dbg_log_probe(struct platform_device *pdev)
 		return PTR_ERR(pll_apb);
 	}
 
-	pmu_apb = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
-						"sprd,syscon-pmu-apb");
-	if (IS_ERR(pmu_apb)) {
-		dev_err(&pdev->dev, "pmu apb get failed!\n");
-		return PTR_ERR(pmu_apb);
-	}
-
 	dbg = dbg_log_device_register(&pdev->dev, &ops, NULL, "debug-log");
 	if (!dbg)
 		return -ENOMEM;
@@ -245,10 +239,8 @@ static int dbg_log_probe(struct platform_device *pdev)
 	dbg->phy->freq = 1500000;
 	dbg->phy->dsi_apb = dsi_apb;
 	dbg->phy->pll_apb = pll_apb;
-	dbg->phy->pmu_apb = pmu_apb;
 	dbg->serdes.base = serdes_apb;
 	dbg->serdes.cut_off = 0x20;
-
 	if (of_property_read_bool(pdev->dev.of_node, "sprd,mm")) {
 		DEBUG_LOG_PRINT("mm enable\n");
 		dbg->mm = true;
@@ -313,7 +305,10 @@ static int dbg_log_probe(struct platform_device *pdev)
 
 	inter_dbg_log_is_freq_valid(dbg, dbg->phy->freq);
 
-	DEBUG_LOG_PRINT("Finish mipiserdes probeFun\n");
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+
+	DEBUG_LOG_PRINT("Finish mipilog probeFun\n");
 	return 0;
 }
 
@@ -333,6 +328,5 @@ static struct platform_driver dbg_log_driver = {
 module_platform_driver(dbg_log_driver);
 
 MODULE_LICENSE("GPL v2");
-MODULE_AUTHOR("Sitao Chen <sitao.chen@unisoc.com>");
 MODULE_AUTHOR("Ken Kuang <ken.kuang@spreadtrum.com>");
 MODULE_DESCRIPTION("Spreadtrum SoC Modem Debug Log Driver");

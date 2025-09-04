@@ -43,7 +43,6 @@ ANDROID,UPGRADE,SECURITY,FROMLIST,UPSTREAM,BACKPORT,FROMGIT,REVERT,PRIVATE,WORKA
 
 arm64:configs:
 arm64:dts:
-arm64:net:
 arm64:topology:
 arm/arm64:configs:
 arm/arm64:dts:
@@ -51,7 +50,6 @@ arm/arm64:kernel:
 arm/arm64:topology:
 arm:configs:
 arm:dts:
-arm:net:
 arm:topology:
 asoc:sprd:
 asoc:sprd:codec:
@@ -61,12 +59,8 @@ asoc:sprd:platform:
 asoc:usb:
 
 base:
-block:
 block:zram:
 
-cgroup:
-char:hw_random:
-char:rpmb:
 clk:sprd:
 clocksource:sprd:
 coresight:
@@ -136,7 +130,6 @@ misc:sprd_camera:
 misc:sprd_gnss:
 misc:sprd_uid:
 misc:sprdwcn:
-misc:vibrator:
 mm:
 mmc:core:
 mmc:host:
@@ -216,8 +209,7 @@ thermal:sprd:
 time:
 trace:
 trusty:
-tty:sysrq:
-
+tcpm:sc27xx_pd:
 unisoc:*
 usb:core:
 usb:dwc3:
@@ -235,5 +227,3 @@ wireless:sprd:
 x86:configs:
 x86:dts:
 x86:topology:
-
-md:

@@ -9,9 +9,7 @@ subdir-ccflags-y := \
 	-I $(srctree)/$(src)/sipc
 
 # compile WCN_PCIE or not
-ifeq ($(CONFIG_PCIE_SPRD),m)
-BUILD_WCN_PCIE := true
-endif
+BUILD_WCN_PCIE := false
 
 ifeq ($(BUILD_WCN_PCIE),true)
 ccflags-y += -DBUILD_WCN_PCIE
@@ -50,7 +48,6 @@ wcn_bsp-y += platform/wcn_swd_dap.o
 wcn_bsp-y += platform/mem_pd_mgr.o
 wcn_bsp-y += platform/wcn_debugfs.o
 wcn_bsp-y += platform/wcn_ca_trusty.o
-wcn_bsp-y += platform/wcn_pm_qos.o
 wcn_bsp-y += sleep/sdio_int.o
 wcn_bsp-y += sleep/slp_mgr.o
 wcn_bsp-y += sleep/slp_sdio.o
@@ -60,7 +57,6 @@ wcn_bsp-y += sleep/slp_test.o
 wcn_bsp-y += boot/wcn_integrate.o
 wcn_bsp-y += boot/wcn_integrate_dev.o
 wcn_bsp-y += boot/wcn_integrate_boot.o
-wcn_bsp-y += boot/wcn_debug_bus.o
 
 #SIPC FILE
 wcn_bsp-y += sipc/wcn_sipc.o

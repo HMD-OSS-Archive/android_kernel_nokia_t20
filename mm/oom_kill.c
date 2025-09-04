@@ -42,8 +42,6 @@
 #include <linux/kthread.h>
 #include <linux/init.h>
 #include <linux/mmu_notifier.h>
-#include <linux/page_owner.h>
-#include <linux/memblock.h>
 
 #include <asm/tlb.h>
 #include "internal.h"
@@ -451,60 +449,6 @@ static void dump_oom_summary(struct oom_control *oc, struct task_struct *victim)
 		from_kuid(&init_user_ns, task_uid(victim)));
 }
 
-#ifdef CONFIG_SPRD_PAGE_OWNER
-static void sprd_show_page_owner(void)
-{
-	unsigned long pfn;
-	struct page *page;
-	pfn = min_low_pfn;
-
-	/* Find a valid PFN or the start of a MAX_ORDER_NR_PAGES area */
-	while (!pfn_valid(pfn) && (pfn & (MAX_ORDER_NR_PAGES - 1)) != 0)
-		pfn++;
-
-	for (; pfn < max_pfn; pfn++) {
-		/*
-		 * If the new page is in a new MAX_ORDER_NR_PAGES area,
-		 * validate the area as existing, skip it if not
-		 */
-		if ((pfn & (MAX_ORDER_NR_PAGES - 1)) == 0 && !pfn_valid(pfn)) {
-			pfn += MAX_ORDER_NR_PAGES - 1;
-			continue;
-		}
-
-		/* Check for holes within a MAX_ORDER area */
-		if (!pfn_valid_within(pfn))
-			continue;
-
-		page = pfn_to_online_page(pfn);
-
-		/* skip reserved page */
-		if (PageReserved(page))
-			continue;
-
-		/* skip page in LRU */
-		if (PageLRU(page))
-			continue;
-
-		/* skip compound and higher-order page */
-		if (PageCompound(page)) {
-			pfn += compound_nr(page);
-			continue;
-		}
-
-		/* skip order0 slab page */
-		if (PageSlab(page))
-			continue;
-
-		/* skip zspage/vmalloc/privatte page */
-		if (PagePrivate(page))
-			continue;
-
-		__dump_page_owner(page);
-	}
-}
-#endif
-
 static void dump_header(struct oom_control *oc, struct task_struct *p)
 {
 	pr_warn("%s invoked oom-killer: gfp_mask=%#x(%pGg), order=%d, oom_score_adj=%hd\n",
@@ -526,12 +470,7 @@ static void dump_header(struct oom_control *oc, struct task_struct *p)
 	if (p)
 		dump_oom_summary(oc, p);
 #ifdef CONFIG_E_SHOW_MEM
-	enhanced_show_mem();
-#endif
-
-#ifdef CONFIG_SPRD_PAGE_OWNER
-	if (current->signal->oom_score_adj < 0)
-		sprd_show_page_owner();
+	enhanced_mem(E_SHOW_MEM_BASIC);
 #endif
 }
 
@@ -1178,22 +1117,25 @@ bool out_of_memory(struct oom_control *oc)
 }
 
 /*
- * The pagefault handler calls here because some allocation has failed. We have
- * to take care of the memcg OOM here because this is the only safe context without
- * any locks held but let the oom killer triggered from the allocation context care
- * about the global OOM.
+ * The pagefault handler calls here because it is out of memory, so kill a
+ * memory-hogging task. If oom_lock is held by somebody else, a parallel oom
+ * killing is already in progress so do nothing.
  */
 void pagefault_out_of_memory(void)
 {
-	static DEFINE_RATELIMIT_STATE(pfoom_rs, DEFAULT_RATELIMIT_INTERVAL,
-				      DEFAULT_RATELIMIT_BURST);
+	struct oom_control oc = {
+		.zonelist = NULL,
+		.nodemask = NULL,
+		.memcg = NULL,
+		.gfp_mask = 0,
+		.order = 0,
+	};
 
 	if (mem_cgroup_oom_synchronize(true))
 		return;
 
-	if (fatal_signal_pending(current))
+	if (!mutex_trylock(&oom_lock))
 		return;
-
-	if (__ratelimit(&pfoom_rs))
-		pr_warn("Huh VM_FAULT_OOM leaked out to the #PF handler. Retrying PF\n");
+	out_of_memory(&oc);
+	mutex_unlock(&oom_lock);
 }

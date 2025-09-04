@@ -79,8 +79,6 @@
 			reg = <0x504>;
 			interrupt-parent = <&ump9620_pmic>;
 			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
-			sprd_adc_pm_reg = <&aon_apb_regs REG_AON_APB_MIPI_CSI_POWER_CTRL
-				MASK_AON_APB_R2G_ANALOG_BB_TOP_SINDRV_ENA_ADC>;
 			#io-channel-cells = <1>;
 			hwlocks = <&hwlock 4>;
 			nvmem-cells = <&adc_bcal1>, <&adc_bcal2>, <&adc_scal1>, <&adc_scal2>, <&vbat_det_cal1>, <&vbat_det_cal2>;
@@ -150,16 +148,8 @@
 				reg = <0x4a 0x2>;
 			};
 
-			headset_adc_fir_1: calib@3c {
-				reg = <0x3c 0x2>;
-			};
-
-			headset_adc_fir_2: calib@3e {
+			headset_adc_sec: calib@3e {
 				reg = <0x3e 0x2>;
-			};
-
-			headset_adc_sec: calib@2e {
-				reg = <0x2e 0x2>;
 			};
 
 			pddelta_calib: calib@48 {
@@ -197,12 +187,9 @@
 			#sound-dai-cells = <1>;
 			reg = <0x1000>;
 			sprd,syscon-pmu-apb = <&pmu_apb_regs>;
-			sprd,syscon-aon-apb = <&aon_apb_regs>;/* 0x64900000 */
+			sprd,syscon-aon-apb = <&aon_apb_regs>;
 			clk26m_sinout_pmic_en = <&aon_apb_regs REG_AON_APB_MIPI_CSI_POWER_CTRL
 				MASK_AON_APB_R2G_ANALOG_BB_TOP_SINDRV_ENA_CAL>;
-			sprd,syscon-agcp-apb = <&audcp_aon_apb_regs>;/* 0x56390000 */
-			sprd,syscon-audaon-clk = <&aud_aon_clk_regs>;/* 0x56394000, 400 ~ 43ff */
-			sprd,syscon-dvfs-apb = <&audcp_dvfs_apb_rf_regs>;/* 0x56250000 */
 			nvmem-cells = <&neg_cp_efuse>,
 				<&fgu_calib>;
 			nvmem-cell-names = "neg_cp_efuse",
@@ -213,12 +200,6 @@
 		syscon@2000 {
 			compatible = "sprd,ump962x-syscon";
 			reg = <0x2000>, <0x23a0>, <0x2398>;
-		};
-
-		pmic_smpl: smpl@2000 {
-			compatible = "sprd,ump9620-smpl", "sprd,sc27xx-smpl";
-			reg = <0x2000>;
-			sprd,smpl-timer-threshold = <250>;
 		};
 
 		power-controller@2000 {
@@ -269,6 +250,7 @@
 				regulator-min-microvolt = <200000>;
 				regulator-max-microvolt = <1596875>;
 				regulator-ramp-delay = <25000>;
+				regulator-always-on;
 			};
 
 			vddmemq: DCDC_MEMQ {
@@ -371,6 +353,7 @@
 				regulator-min-microvolt = <1200000>;
 				regulator-max-microvolt = <3750000>;
 				regulator-ramp-delay = <25000>;
+				regulator-always-on;
 			};
 
 			vddsdcore: LDO_VDDSDCORE {
@@ -546,11 +529,6 @@
 		vibrator@2390 {
 			compatible = "sprd,ump9620-vibrator", "sprd,sc27xx-vibrator";
 			reg = <0x2390>;
-		};
-
-		bc1p2@239c {
-			compatible = "sprd,ump9620-bc1p2", "sprd,ump96xx-bc1p2";
-			reg = <0x239c>, <0x23a0>, <0x243c>;
 		};
 
 		hw_reset@23c0 {

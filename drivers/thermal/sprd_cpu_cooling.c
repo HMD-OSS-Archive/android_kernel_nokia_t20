@@ -240,8 +240,8 @@ static int cpu_get_cur_state(struct thermal_cooling_device *cdev,
 static int cpu_down_cpus(struct thermal_cooling_device *cdev,
 			       u32 cur_cpus, u32 target_cpus)
 {
-	int cpu, ret;
-	unsigned int first, ncpus;
+	int ret;
+	u32 cpu, first, ncpus;
 	struct cpumask mask;
 	struct cpu_cooling_device *cpu_cdev = cdev->devdata;
 
@@ -253,18 +253,17 @@ static int cpu_down_cpus(struct thermal_cooling_device *cdev,
 			first, cur_cpus - target_cpus, cur_cpus, target_cpus);
 		cpumask_clear(&mask);
 		for (cpu = (first + ncpus - 1); cpu >= first; cpu--) {
-			if (cur_cpus == target_cpus || !cpu)
+			if (cur_cpus == target_cpus)
 				break;
 			if ((target_cpus < cur_cpus) && !cpu_isolated_fun(cpu)) {
 				cpumask_set_cpu(cpu, &mask);
-				cpumask_set_cpu(cpu, &cpu_cdev->idle_cpus);
+				cpumask_set_cpu(cpu,
+						&cpu_cdev->idle_cpus);
 				cur_cpus--;
 			}
 		}
-
-		if (!cpumask_empty(&mask) && cpu_isolate_fun(&mask, 0))
-			cpumask_andnot(&cpu_cdev->idle_cpus,
-				       &cpu_cdev->idle_cpus, &mask);
+		if (!cpumask_empty(&mask))
+			cpu_isolate_fun(&mask, 0);
 
 		return 0;
 	} else {
@@ -291,8 +290,8 @@ static int cpu_down_cpus(struct thermal_cooling_device *cdev,
 static int cpu_up_cpus(struct thermal_cooling_device *cdev,
 			       u32 cur_cpus, u32 target_cpus)
 {
-	int cpu, ret;
-	unsigned int first, ncpus;
+	int ret;
+	u32 cpu, first, ncpus;
 	struct cpumask mask;
 	struct cpu_cooling_device *cpu_cdev = cdev->devdata;
 
@@ -309,14 +308,14 @@ static int cpu_up_cpus(struct thermal_cooling_device *cdev,
 			if ((target_cpus > cur_cpus) &&
 			    cpu_online(cpu) && cpu_isolated_fun(cpu)) {
 				cpumask_set_cpu(cpu, &mask);
-				cpumask_clear_cpu(cpu, &cpu_cdev->idle_cpus);
+				cpumask_clear_cpu(cpu,
+						  &cpu_cdev->idle_cpus
+						  );
 				cur_cpus++;
 			}
 		}
-
-		if (!cpumask_empty(&mask) && cpu_isolate_fun(&mask, 1))
-			cpumask_or(&cpu_cdev->idle_cpus,
-				   &cpu_cdev->idle_cpus, &mask);
+		if (!cpumask_empty(&mask))
+			cpu_isolate_fun(&mask, 1);
 
 		return 0;
 

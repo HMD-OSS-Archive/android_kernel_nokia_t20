@@ -59,9 +59,9 @@ int marlin_set_sleep(enum wcn_sub_sys subsys, bool enable);
 int marlin_reset_reg(void);
 int start_marlin(enum wcn_sub_sys subsys);
 int stop_marlin(enum wcn_sub_sys subsys);
-int open_power_ctl(void);
 unsigned int marlin_get_wcn_xpe_efuse_data(void);
 #define WCN_XPE_EFUSE_DATA 1
+int open_power_ctl(void);
 bool marlin_get_download_status(void);
 void marlin_set_download_status(int f);
 void marlin_chip_en(bool enable, bool reset);
@@ -76,7 +76,6 @@ int cali_ini_need_download(enum wcn_sub_sys subsys);
 const char *strno(enum wcn_sub_sys subsys);
 void wcn_chip_power_on(void);
 void wcn_chip_power_off(void);
-void wcn_reset_pcie(void);
 void mdbg_assert_interface(char *str);
 char *gnss_firmware_path_get(void);
 

@@ -769,11 +769,6 @@ void sdiohal_set_carddump_status(unsigned int flag)
 		pr_info("disable rx int for dump\n");
 	}
 	p_data->card_dump_flag = flag;
-
-	pr_info("%s %s rx_irq_ns(%llu %llu), tx_sch_ns(%llu %llu).\n",
-		current->comm, __func__,
-		p_data->tm_begin_irq, p_data->tm_end_irq,
-		p_data->tm_begin_sch, p_data->tm_end_sch);
 }
 
 unsigned int sdiohal_get_carddump_status(void)
@@ -797,7 +792,6 @@ void sdiohal_enable_rx_irq(void)
 
 	sdiohal_atomic_sub(1, &p_data->irq_cnt);
 	irq_set_irq_type(p_data->irq_num, IRQF_TRIGGER_HIGH);
-	/* WARNING: when the card is removed, sdiohal_remove():free(pdata->irq) */
 	enable_irq(p_data->irq_num);
 }
 
@@ -810,7 +804,7 @@ static irqreturn_t sdiohal_irq_handler(int irq, void *para)
 	sdiohal_lock_rx_ws();
 	sdiohal_disable_rx_irq(irq);
 
-	p_data->tm_begin_irq = ktime_get_boot_fast_ns();
+	getnstimeofday(&p_data->tm_begin_irq);
 	sdiohal_rx_up();
 
 	return IRQ_HANDLED;
@@ -962,7 +956,6 @@ static int sdiohal_suspend(struct device *dev)
 	pr_debug("[%s]enter\n", __func__);
 
 	atomic_set(&p_data->flag_suspending, 1);
-	mdbg_device_lock_notify();
 	for (chn = 0; chn < SDIO_CHANNEL_NUM; chn++) {
 		sdiohal_ops = chn_ops(chn);
 		if (sdiohal_ops && sdiohal_ops->power_notify) {
@@ -973,7 +966,6 @@ static int sdiohal_suspend(struct device *dev)
 				pr_info("[%s] chn:%d suspend fail\n",
 					__func__, chn);
 				atomic_set(&p_data->flag_suspending, 0);
-				mdbg_device_unlock_notify();
 				return ret;
 			}
 		}
@@ -993,7 +985,6 @@ static int sdiohal_suspend(struct device *dev)
 		func = container_of(dev, struct sdio_func, dev);
 		func->card->host->pm_flags |= MMC_PM_KEEP_POWER;
 	}
-	mdbg_device_unlock_notify();
 
 	return 0;
 }
@@ -1014,7 +1005,6 @@ static int sdiohal_resume(struct device *dev)
 	}
 
 	atomic_set(&p_data->flag_resume, 1);
-	mdbg_device_lock_notify();
 
 	for (chn = 0; chn < SDIO_CHANNEL_NUM; chn++) {
 		sdiohal_ops = chn_ops(chn);
@@ -1025,7 +1015,6 @@ static int sdiohal_resume(struct device *dev)
 					__func__, chn);
 		}
 	}
-	mdbg_device_unlock_notify();
 
 	return 0;
 }
@@ -1186,49 +1175,24 @@ static void sdiohal_remove(struct sdio_func *func)
 	pr_info("%s remove card successful\n", __func__);
 }
 
-/*
- *    @dir: 0 rx, 1 tx
- */
-int wcn_thread_setattr(unsigned dir, struct sched_attr *attr)
-{
-	int ret;
-	struct task_struct *target;
-	struct sdiohal_data_t *p_data = sdiohal_get_data();
-
-	pr_info("%s: dir %u\n", __func__, dir);
-
-	if (!attr)
-		return -EINVAL;
-
-	target = dir ? p_data->tx_thread : p_data->rx_thread;
-
-	ret = sched_setattr(target, attr);
-	if (ret) {
-		pr_err("%s err %d\n", __func__, ret);
-		return ret;
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(wcn_thread_setattr);
-
 static void sdiohal_launch_thread(void)
 {
-	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	struct task_struct *tx_thread = NULL;
+	struct task_struct *rx_thread = NULL;
 
-	p_data->tx_thread = kthread_create(sdiohal_tx_thread,
+	tx_thread = kthread_create(sdiohal_tx_thread,
 				   NULL, "sdiohal_tx_thread");
-	if (p_data->tx_thread)
-		wake_up_process(p_data->tx_thread);
+	if (tx_thread)
+		wake_up_process(tx_thread);
 	else {
 		pr_err("create sdiohal_tx_thread fail\n");
 		return;
 	}
 
-	p_data->rx_thread = kthread_create(sdiohal_rx_thread,
+	rx_thread = kthread_create(sdiohal_rx_thread,
 				   NULL, "sdiohal_rx_thread");
-	if (p_data->rx_thread)
-		wake_up_process(p_data->rx_thread);
+	if (rx_thread)
+		wake_up_process(rx_thread);
 	else
 		pr_err("creat sdiohal_rx_thread fail\n");
 }

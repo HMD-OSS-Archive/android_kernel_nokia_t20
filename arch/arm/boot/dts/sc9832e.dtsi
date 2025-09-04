@@ -42,8 +42,6 @@
 			enable-method = "psci";
 			cpu-idle-states = <&CORE_PD>;
 			cpufreq-data-v1 = <&cpufreq_clus0>;
-			dynamic-power-coefficient = <105>;
-			#cooling-cells = <2>;
 		};
 		cpu1: cpu@1 {
 			device_type = "cpu";
@@ -272,11 +270,6 @@
 
 	sprd_swdvfs: sprd-swdvfs {
 		compatible = "sprd,sharkle-swdvfs";
-	};
-
-	debug_stat: debugstat {
-		compatible = "sprd,debugstat";
-		soc_slp_cnt_reg = <&pmu_apb_regs REG_PMU_APB_PUB_SYS_DEEP_SLEEP_CNT 0xff>;
 	};
 
 	psci {

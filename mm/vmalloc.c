@@ -1678,7 +1678,6 @@ static void _vm_unmap_aliases(unsigned long start, unsigned long end, int flush)
 
 	might_sleep();
 
-	mutex_lock(&vmap_purge_lock);
 	for_each_possible_cpu(cpu) {
 		struct vmap_block_queue *vbq = &per_cpu(vmap_block_queue, cpu);
 		struct vmap_block *vb;
@@ -1703,6 +1702,7 @@ static void _vm_unmap_aliases(unsigned long start, unsigned long end, int flush)
 		rcu_read_unlock();
 	}
 
+	mutex_lock(&vmap_purge_lock);
 	purge_fragmented_blocks_allcpus();
 	if (!__purge_vmap_area_lazy(start, end) && flush)
 		flush_tlb_kernel_range(start, end);
@@ -2458,10 +2458,6 @@ static void *__vmalloc_area_node(struct vm_struct *area, gfp_t gfp_mask,
 			page = alloc_page(alloc_mask|highmem_mask);
 		else
 			page = alloc_pages_node(node, alloc_mask|highmem_mask, 0);
-
-#ifdef CONFIG_SPRD_PAGE_OWNER
-		SetPagePrivate(page);
-#endif
 
 		if (unlikely(!page)) {
 			/* Successfully allocated i pages, free them in __vunmap() */
@@ -3458,7 +3454,7 @@ void pcpu_free_vm_areas(struct vm_struct **vms, int nr_vms)
 #endif	/* CONFIG_SMP */
 
 #ifdef CONFIG_E_SHOW_MEM
-void print_vmalloc_info(void)
+void print_vmalloc_info(enum e_show_mem_type type)
 {
 	struct vmap_area *va;
 	struct vm_struct *v;
@@ -3478,9 +3474,19 @@ void print_vmalloc_info(void)
 		v = va->vm;
 		if (v->nr_pages) {
 			total_pages += v->nr_pages;
-			/* 128K Bytes */
-			if ((v->nr_pages << (PAGE_SHIFT - 10)) < 128)
-				continue;
+			if (E_SHOW_MEM_BASIC == type) {
+				/* 1M Bytes */
+				if ((v->nr_pages << (PAGE_SHIFT - 10)) < 1024)
+					continue;
+			} else if (E_SHOW_MEM_CLASSIC == type) {
+				/* 512K Bytes */
+				if ((v->nr_pages << (PAGE_SHIFT - 10)) < 512)
+					continue;
+			} else {
+				/* 128K Bytes */
+				if ((v->nr_pages << (PAGE_SHIFT - 10)) < 128)
+					continue;
+			}
 
 			pr_info("0x%p-0x%p %7ld %pS %dkB %s%s\n",
 				v->addr, v->addr + v->size, v->size, v->caller,
@@ -3499,10 +3505,11 @@ out:
 static int vmalloc_e_show_mem_handler(struct notifier_block *nb,
 			unsigned long val, void *data)
 {
+	enum e_show_mem_type type = val;
 
 	pr_info("\n");
 	pr_info("Enhanced Mem-info :VMALLOC\n");
-	print_vmalloc_info();
+	print_vmalloc_info(type);
 	return 0;
 }
 

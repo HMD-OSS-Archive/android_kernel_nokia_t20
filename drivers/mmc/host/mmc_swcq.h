@@ -145,10 +145,8 @@ struct mmc_swcq {
 	struct swcq_node *cmd_node_array;/*node pool(workaround to replace link of mmc_host)*/
 	struct swcq_node *data_node_array;/*node pool(workaround to replace link of mmc_host)*/
 	int dbg_host_cnt;/*debug entries of cmd history*/
-	int debug1;/*record the times of mmc mode changed*/
+	int debug1;
 	struct dbg_run_host_log cmd_history[dbg_max_cnt];/*cmd hisotry buffer*/
-	int recovery_cnt; /* record the times of entering cmdq recovery mode */
-	bool cmdq_support;	/* Command Queue supported */
 };
 /*
  * There is one mmc_blk_data per slot.

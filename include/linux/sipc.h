@@ -37,7 +37,6 @@ enum {
 
 #define SIPC_ID_LTE		SIPC_ID_PSCP
 
-#define MAX_OBJ_NAME_LEN		32
 /* share-mem ring buffer short message */
 struct smsg {
 	u8		channel;	/* channel index */
@@ -101,7 +100,6 @@ enum {
 	SMSG_CH_PLOG1,
 	SMSG_CH_PLOG2,
 	SMSG_CH_PLOG3,
-	SMSG_CH_LOG_LOOP = 66,
 
 	/* virtual serial for telephony,  channel 80~99*/
 	SMSG_CH_TTY_BASE  = 80,
@@ -109,7 +107,6 @@ enum {
 	SMSG_CH_TTY1,
 	SMSG_CH_TTY2,
 	SMSG_CH_TTY3,
-	SMSG_CH_TTY_SS = 88,
 
 	/* some emergency control, channel 100~119 */
 	SMSG_CH_CTRL_BASE = 100,
@@ -209,13 +206,11 @@ static const struct sipc_config sipc_cfg[] = {
 	{SMSG_CH_PLAYBACK_VOIP, "VOIP playback"}, /* chanel 15 */
 	{SMSG_CH_CAPTURE_VOIP, "VOIP capture"}, /* chanel 16 */
 	{SMSG_CH_MONITOR_VOIP, "VOIP monitor"}, /* chanel 17 */
-	{SMSG_CH_TTY_SS, "stty ss chanel"}, /* chanel 88 */
 	{SMSG_CH_PLAYBACK_DEEP, "audio playback deep"},  /*channel 131*/
 	{SMSG_CH_IMSBR_DATA, "imsbr data"}, /* chanel 2 */
 	{SMSG_CH_IMSBR_CTRL, "imsbr control"},  /* channel 3 */
 	{SMSG_CH_VOIP_DEEP, "audio voip deep"},  /*channel 151*/
 	{SMSG_CH_DVFS, "dvfs"},  /* channel 41 */
-	{SMSG_CH_LOG_LOOP, "log loop"},  /* channel 66 */
 	{SMSG_CH_COMM_SIPA, "sipa"},  /* channel 120 */
 	{SMSG_CH_NV, "nvsync"}, /* channel 40 */
 	{SMSG_CH_PLAYBACK_CALLSCREEN, "audio mix uplink"},  /*channel 132*/
@@ -247,13 +242,6 @@ enum {
 	SMSG_TYPE_NR,		/* total type number */
 };
 
-/* modem ram vmap type definition */
-typedef enum {
-	MMAP_CACHE = 0,
-	MMAP_WRITECOMBINE,
-	MMAP_NONCACHE,
-} E_MMAP_TYPE;
-
 struct smsg_callback_t {
 	void (*callback)(const struct smsg  *msg, void *data);
 	void *data;
@@ -268,10 +256,6 @@ void smsg_callback_register(u8 dst, u8 channel,
 			void *data);
 
 void smsg_callback_unregister(u8 dst, u8 channel);
-
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-int senddie_callback(struct notifier_block *nb, unsigned long code, void *unused);
-#endif
 
 /**
 * sipc_get_wakeup_flag
@@ -458,17 +442,6 @@ void *shmem_ram_vmap_cache_ex(u8 dst, u16 smem, phys_addr_t start, size_t size);
 void modem_ram_unmap(u32 modem_type, const void *mem);
 
 /**
- * modem_ram_vmap_cache_ex -- for modem map ram address
- *
- * @modem_type: soc modem, pcie modem
- * @start: start address
- * @size: size to be allocated, page-aligned
- * @mtype: MMAP_CACHE, MMAP_WRITECOMBINE, MMAP_NONCACHE
- * @return: phys addr or 0 if failed
- */
-void *modem_ram_vmap_ex(u32 modem_type, phys_addr_t start, size_t size, E_MMAP_TYPE mtype);
-
-/**
  * shmem_ram_vmap_nocache -- for modem map ram address
  *
  * @modem_type: soc modem, pcie modem
@@ -624,7 +597,6 @@ int sblock_create(u8 dst, u8 channel,
  *
  * @dst: dest processor ID
  * @channel: channel ID
- * @smem: smem ID,default is 0
  * @txblocknum: tx block number
  * @txblocksize: tx block size
  * @rxblocknum: rx block number
@@ -633,7 +605,7 @@ int sblock_create(u8 dst, u8 channel,
  * @data: opaque data passed to the receiver
  * @return: 0 on success, <0 on failure
  */
-int sblock_create_ex(u8 dst, u8 channel, u8 smem,
+int sblock_create_ex(u8 dst, u8 channel,
 			u32 txblocknum, u32 txblocksize,
 			u32 rxblocknum, u32 rxblocksize,
 			void (*handler)(int event, void *data), void *data);
@@ -643,7 +615,6 @@ int sblock_create_ex(u8 dst, u8 channel, u8 smem,
  *
  * @dst: dest processor ID
  * @channel: channel ID
- * @smem: smem ID,default is 0
  * @tx_blk_num: tx block number
  * @tx_blk_sz: tx block size
  * @rx_blk_num: rx block number
@@ -654,7 +625,7 @@ int sblock_create_ex(u8 dst, u8 channel, u8 smem,
  * open the channel. The client shall open the channel using
  * sblock_pcfg_open and close the channel using sblock_close.
  */
-int sblock_pcfg_create(u8 dst, u8 channel, u8 smem, u32 tx_blk_num, u32 tx_blk_sz,
+int sblock_pcfg_create(u8 dst, u8 channel, u32 tx_blk_num, u32 tx_blk_sz,
 			u32 rx_blk_num, u32 rx_blk_sz);
 
 /* sblock_pcfg_open -- request to open preconfigured SBLOCK channel.
@@ -784,17 +755,6 @@ int sblock_receive(u8 dst, u8 channel,
 		struct sblock *blk, int timeout);
 
 /**
- * sblock_receive_loop  -- receive a sblock, it should be released after it's handled
- *
- * @dst: dest processor ID
- * @channel: channel ID
- * @blk: return a received sblock pointer
- * @return: 0 on success, <0 on failure
- */
-int sblock_receive_loop(u8 dst, u8 channel,
-			struct sblock *blk);
-
-/**
  * sblock_release  -- release a sblock from reveiver
  *
  * @dst: dest processor ID
@@ -802,15 +762,6 @@ int sblock_receive_loop(u8 dst, u8 channel,
  * @return: 0 on success, <0 on failure
  */
 int sblock_release(u8 dst, u8 channel, struct sblock *blk);
-
-/**
- * sblock_release_loop  -- release a sblock from reveiver
- *
- * @dst: dest processor ID
- * @channel: channel ID
- * @return: 0 on success, <0 on failure
- */
-int sblock_release_loop(u8 dst, u8 channel, struct sblock *blk);
 
 /**
  * sblock_get_arrived_count  -- get the count of sblock(s) arrived at
@@ -823,15 +774,6 @@ int sblock_release_loop(u8 dst, u8 channel, struct sblock *blk);
 int sblock_get_arrived_count(u8 dst, u8 channel);
 
 /**
- * sblock_mgr_get_addr  -- get the block_mgr addr
- *
- * @dst: dest processor ID
- * @channel: channel ID
- * @return: sblock_mgr, 0 on failure
- */
-struct sblock_mgr *sblock_mgr_get_addr(u8 dst, u8 channel);
-
-/**
  * sblock_get_free_count  -- get the count of available sblock(s) resident in
  * sblock pool on AP.
  *
@@ -840,10 +782,6 @@ struct sblock_mgr *sblock_mgr_get_addr(u8 dst, u8 channel);
  * @return: >=0  the count of blocks
  */
 int sblock_get_free_count(u8 dst, u8 channel);
-
-void sblock_register_slog_clean_sendlist(void (*callback)(void));
-
-void sblock_unregister_slog_clean_sendlist(void);
 
 /**
  * sblock_put  -- put a free sblock for sender
@@ -1038,24 +976,6 @@ sipx_chan_create(dst, channel)
 #define SBLOCK_PUT(dst, channel, blk) \
 	sipx_put(dst, channel, blk)
 
-/**
- * sbuf_copy_from_user  -- unaligned data accesses to addresses
- *
- * @to: dest, device memory and alignment access must be considered
- * @from: src, normal memory
- * @n: bytes
- * @return: bytes not copied
- */
-static inline unsigned long sbuf_copy_from_user(void *to, const void __user *from, unsigned long n) {
-	unsigned long res = n;
-	might_fault();
-	if (likely(check_copy_size(to, n, false))) {
-		kasan_check_write(to, n);
-		res = raw_copy_from_user(to, from, n);
-	}
-	return res;
-}
-
 #ifdef CONFIG_ARM64
 /**
  * unalign_copy_from_user  -- unaligned data accesses to addresses
@@ -1103,20 +1023,20 @@ static inline unsigned long unalign_copy_from_user(void *to,
 	/* to is 8 byte aligned and n is less than 16 bytes */
 	c1 = !((unsigned long)to & 0x7) && (n < 16);
 	if (c1)
-		return sbuf_copy_from_user(to, from, n);
+		return copy_from_user(to, from, n);
 
 	/* to and from are 8 byte aligned */
 	c2 = !((unsigned long)to & 0x7) && !((unsigned long)from & 0x7);
 	if (c2)
-		return sbuf_copy_from_user(to, from, n);
+		return copy_from_user(to, from, n);
 
 	/* to and from are the same offset and n is more than 15 bytes */
 	c3 = !(((unsigned long)to ^ (unsigned long)from) & 0x7) && (n > 15);
 	if (c3)
-		return sbuf_copy_from_user(to, from, n);
+		return copy_from_user(to, from, n);
 
 	while (n) {
-		if (sbuf_copy_from_user(to++, from++, 1))
+		if (copy_from_user(to++, from++, 1))
 			break;
 		n--;
 	}
@@ -1208,7 +1128,7 @@ static inline unsigned long unalign_copy_from_user(void *to,
 		const void __user *from,
 		unsigned long n)
 {
-	return sbuf_copy_from_user(to, from, n);
+	return copy_from_user(to, from, n);
 }
 static inline void *unalign_memcpy(void *to, const void *from, size_t n)
 {

@@ -242,6 +242,7 @@ bool wcn_power_status_check(struct wcn_device *wcn_dev);
 u32 wcn_parse_platform_chip_id(struct wcn_device *wcn_dev);
 void mdbg_hold_cpu(void);
 enum wcn_aon_chip_id wcn_get_aon_chip_id(void);
+bool wcn_get_aon_chip_type(void);
 const char *wcn_get_chip_name(void);
 void wcn_merlion_power_control(bool enable);
 
@@ -252,5 +253,4 @@ void integ_wcn_set_module_status_changed(bool status);
 int integ_marlin_get_module_status(void);
 int start_integ_marlin(u32 subsys);
 int stop_integ_marlin(u32 subsys);
-int wcn_check_2to1_bin(struct wcn_device *wcn_dev, const struct firmware *firmware, loff_t *off);
 #endif

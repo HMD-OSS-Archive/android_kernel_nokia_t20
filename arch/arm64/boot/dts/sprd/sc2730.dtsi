@@ -21,7 +21,7 @@
 			reg = <0x40>;
 		};
 
-		pmic_led: led-controller@180 {
+		led-controller@180 {
 			compatible = "sprd,sc2730-bltc";
 			#address-cells = <1>;
 			#size-cells = <0>;
@@ -43,7 +43,7 @@
 			};
 		};
 
-		pmic_rtc: rtc@200 {
+		rtc@200 {
 			compatible = "sprd,sc2731-rtc", "sprd,sc2730-rtc";
 			reg = <0x200>;
 			interrupt-parent = <&sc2730_pmic>;
@@ -61,7 +61,7 @@
 			#interrupt-cells = <2>;
 		};
 
-		pmic_efuse: efuse@300 {
+		efuse@300 {
 			compatible = "sprd,sc2730-efuse";
 			reg = <0x300>;
 			#address-cells = <1>;
@@ -113,10 +113,6 @@
 
 			headset_adc_sec: calib@16 {
 				reg = <0x2c 0x2>;
-			};
-
-			codec_product_info: calib@2e {
-				reg = <0x2e 0x2>;
 			};
 		};
 
@@ -181,21 +177,19 @@
 			sprd,syscon-pmu-apb = <&pmu_apb_regs>;
 			nvmem-cells = <&aud_pabst_vcal>,
 				<&neg_cp_efuse>,
-				<&fgu_calib>,
-				<&codec_product_info>;
+				<&fgu_calib>;
 			nvmem-cell-names = "aud_pabst_vcal_efuse",
 					"neg_cp_efuse",
-					"fgu_4p2_efuse",
-					"codec_product_info";
+					"fgu_4p2_efuse";
 			status = "disabled";
 		};
 
-		pmic_syscon: syscon@1800 {
+		syscon@1800 {
 			compatible = "sprd,sc2731-syscon", "sprd,sc27xx-syscon";
 			reg = <0x1800>, <0x1ba0>, <0x1b98>;
 		};
 
-		pmic_power: power-controller@1800 {
+		power-controller@1800 {
 			compatible = "sprd,sc2731-regulator", "sprd,sc2730-regulator";
 
 			vddcpu: DCDC_CPU {
@@ -438,13 +432,7 @@
 			};
 		};
 
-		pmic_smpl: smpl@1800 {
-			compatible = "sprd,sc27xx-smpl", "sprd,sc2730-smpl";
-			reg = <0x1800>;
-			sprd,smpl-timer-threshold = <250>;
-		};
-
-		pmic_poweroff: poweroff@1820 {
+		poweroff@1820 {
 			compatible = "sprd,sc27xx-poweroff", "sprd,sc2730-poweroff";
 			reg = <0x1820>;
 		};
@@ -465,12 +453,12 @@
 			};
 		};
 
-		pmic_vibrator: vibrator@1b90 {
+		vibrator@1b90 {
 			compatible = "sprd,sc2730-vibrator";
 			reg = <0x1b90>;
 		};
 
-		pmic_hwreset: hw-reset@1bc0 {
+		hw-reset@1bc0 {
 			compatible = "sprd,sc27xx-7sreset", "sprd,sc2730-7sreset";
 			reg = <0x1bf8>, <0x1bc0>;
 		};

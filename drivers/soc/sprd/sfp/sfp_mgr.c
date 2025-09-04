@@ -52,11 +52,7 @@
 #define DHCP_PORT 67
 #define DNS_PORT 53
 
-#if IS_ENABLED(CONFIG_SPRD_IPA_V3)
-#define CHK_FWD_ENTRY_SIZE (sizeof(struct fwd_entry) != 120)
-#else
 #define CHK_FWD_ENTRY_SIZE (sizeof(struct fwd_entry) != 96)
-#endif
 #define CHK_HASH_TBL_SIZE (sizeof(struct hd_hash_tbl) != 8)
 
 spinlock_t mgr_lock;/* Spinlock for sfp */
@@ -73,7 +69,7 @@ static const char * const sfp_netdev[] = {
 
 #define IPA_TERM_MAX 32
 static const char * const ipa_netdev[IPA_TERM_MAX] = {
-				    [1] = "sipa_usb",
+				    [1] = "usb",
 				    [2] = "wlan",
 				    [6] = "sipa_eth",
 				  };
@@ -205,16 +201,12 @@ int sfp_mgr_fwd_entry_delete(const struct nf_conntrack_tuple *tuple)
 static void sfp_mgr_fwd_death_by_timeout(struct timer_list *t)
 {
 	struct sfp_conn *sfp_entry = from_timer(sfp_entry, t, timeout);
-	struct sfp_mgr_fwd_tuple_hash *tuplehash_original;
-	struct sfp_mgr_fwd_tuple_hash *tuplehash_reply;
+	//sfp_entry = (struct sfp_conn *)ul_fwd_entry_conn;
 
 	if (!sfp_entry) {
 		FP_PRT_DBG(FP_PRT_ERR, "sfp_entry was free when time out.\n");
 		return;
 	}
-
-	tuplehash_original = &sfp_entry->tuplehash[IP_CT_DIR_ORIGINAL];
-	tuplehash_reply = &sfp_entry->tuplehash[IP_CT_DIR_REPLY];
 
 	FP_PRT_DBG(FP_PRT_DEBUG, "SFP:<<check death by timeout(%p)>>.\n",
 		   sfp_entry);
@@ -246,16 +238,12 @@ static void sfp_mgr_fwd_death_by_timeout(struct timer_list *t)
 			   &sfp_entry->tuplehash[IP_CT_DIR_REPLY].tuple);
 
 	rcu_read_lock_bh();
-
-	if (tuplehash_original->entry_lst.pprev != LIST_POISON2) {
-		hlist_del_rcu(&tuplehash_original->entry_lst);
-		call_rcu(&tuplehash_original->rcu, sfp_mgr_fwd_entry_free);
-	}
-	if (tuplehash_reply->entry_lst.pprev != LIST_POISON2) {
-		hlist_del_rcu(&tuplehash_reply->entry_lst);
-		call_rcu(&tuplehash_reply->rcu, sfp_mgr_fwd_entry_free);
-	}
-
+	hlist_del_rcu(&sfp_entry->tuplehash[IP_CT_DIR_ORIGINAL].entry_lst);
+	call_rcu(&sfp_entry->tuplehash[IP_CT_DIR_ORIGINAL].rcu,
+		 sfp_mgr_fwd_entry_free);
+	hlist_del_rcu(&sfp_entry->tuplehash[IP_CT_DIR_REPLY].entry_lst);
+	call_rcu(&sfp_entry->tuplehash[IP_CT_DIR_REPLY].rcu,
+		 sfp_mgr_fwd_entry_free);
 	rcu_read_unlock_bh();
 	spin_unlock_bh(&mgr_lock);
 }
@@ -743,11 +731,6 @@ int sfp_filter_mgr_fwd_create_entries(u8 pf, struct sk_buff *skb)
 	net = nf_ct_net(ct);
 	rt = skb_rtable(skb);
 
-	/* Filter the scenario of tun and tap devices */
-	if ((skb->dev->flags & IFF_POINTOPOINT) ||
-	    (rt->dst.dev->flags & IFF_POINTOPOINT))
-		return 0;
-
 	/* wifi/bt-pan does not support IPA due to their hardware drawback */
 	if (!get_sfp_tether_scheme()) {
 		if (is_banned_ipa_netdev(skb->dev) ||
@@ -1118,12 +1101,12 @@ static void sfp_ipa_dev_init(void)
 			   sizeof(struct fwd_entry),
 			   sizeof(struct hd_hash_tbl));
 	}
+
 	memset(&sfp_ipa_dev, 0, sizeof(struct device));
 	sfp_ipa_dev.bus = &platform_bus_type;
-	sfp_ipa_dev.coherent_dma_mask = DMA_BIT_MASK(32);
-	sfp_ipa_dev.dma_mask = &sfp_ipa_dev.coherent_dma_mask;
+
 	of_dma_configure(&sfp_ipa_dev, sfp_ipa_dev.of_node, true);
-#if IS_ENABLED(CONFIG_DMA_PERDEV_COHERENT)
+#ifdef CONFIG_DMA_PERDEV_COHERENT
 	sfp_ipa_dev.archdata.dma_coherent = false;
 #endif
 }
@@ -1138,8 +1121,6 @@ static int sfp_mgr_init(void)
 		sfp_ipa_init();
 	}
 	sfp_proc_create();
-	if (sysctl_net_sfp_enable == 1)
-		sfp_mgr_proc_enable();
 	return 0;
 }
 
@@ -1149,7 +1130,6 @@ static int __init init_sfp_module(void)
 
 	status = sfp_mgr_init();
 	nf_sfp_conntrack_init();
-	sfp_netlink_init();
 	sysctl_sfp_init();
 	if (status != SFP_OK)
 		return -EPERM;
@@ -1160,7 +1140,6 @@ static void __exit exit_sfp_module(void)
 {
 	sfp_mgr_disable();
 	nfp_proc_exit();
-	sfp_netlink_exit();
 	sysctl_sfp_exit();
 }
 

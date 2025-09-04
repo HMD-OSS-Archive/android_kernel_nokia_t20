@@ -49,27 +49,6 @@ static int sdio_chn_init(struct mchn_ops_t *ops)
 
 static int sdio_chn_deinit(struct mchn_ops_t *ops)
 {
-	struct sdiohal_data_t *p_data = sdiohal_get_data();
-
-	/* wifi tx port is 8*/
-	if ((!sprd_wlan_power_status_sync(0, 0)) && (ops->pool_size > 0)
-			&& (ops->channel == 8)) {
-		/* rm invalid mbuf in p_data->tx_list_head */
-		if (p_data->tx_list_head.mbuf_head && p_data->tx_list_head.node_num) {
-			sdiohal_atomic_sub(sdiohal_remove_datalist_invalid_data(ops,
-						&p_data->tx_list_head), &p_data->tx_mbuf_num);
-			if (atomic_read(&p_data->tx_mbuf_num) == 0) {
-				p_data->tx_list_head.mbuf_head = NULL;
-				p_data->tx_list_head.mbuf_tail = NULL;
-			}
-		}
-		/* rm invalid mbuf in data_list_tx */
-		if (p_data->data_list_tx == NULL)
-			pr_info(" p_data->data_list_tx is NULL \n");
-		else if (p_data->data_list_tx->mbuf_head && p_data->data_list_tx->node_num)
-			sdiohal_remove_datalist_invalid_data(ops, p_data->data_list_tx);
-		sprd_wlan_power_status_sync(1, 1);
-	}
 	return bus_chn_deinit(ops);
 }
 
@@ -140,11 +119,6 @@ static enum wcn_hard_intf_type sdio_get_hwintf_type(void)
 	return HW_TYPE_SDIO;
 }
 
-static void sdio_debug_point_show(void)
-{
-	sdiohal_debug_point_show();
-}
-
 static struct sprdwcn_bus_ops sdiohal_bus_ops = {
 	.preinit = sdio_preinit,
 	.deinit = sdio_preexit,
@@ -172,7 +146,6 @@ static struct sprdwcn_bus_ops sdiohal_bus_ops = {
 	.register_rescan_cb = sdio_register_rescan_cb,
 	.rescan = sdio_rescan,
 	.remove_card = sdio_remove_card,
-	.debug_point_show = sdio_debug_point_show,
 };
 
 void module_bus_sdio_init(void)

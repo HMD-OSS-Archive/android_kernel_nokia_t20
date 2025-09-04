@@ -21,8 +21,6 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/wait.h>
-#include <linux/vmalloc.h>
-#include <linux/slab.h>
 
 #define GNSS_RING_R			0
 #define GNSS_RING_W			1
@@ -97,18 +95,18 @@ static void gnss_ring_destroy(struct gnss_ring_t *pring)
 	if (pring) {
 		if (pring->pbuff) {
 			pr_debug("%s free pbuff\n", __func__);
-			vfree(pring->pbuff);
+			kfree(pring->pbuff);
 			pring->pbuff = NULL;
 		}
 
 		if (pring->plock) {
 			pr_debug("%s free plock\n", __func__);
 			mutex_destroy(pring->plock);
-			vfree(pring->plock);
+			kfree(pring->plock);
 			pring->plock = NULL;
 		}
 		pr_debug("%s free pring\n", __func__);
-		vfree(pring);
+		kfree(pring);
 		pring = NULL;
 	}
 }
@@ -125,17 +123,17 @@ static struct gnss_ring_t *gnss_ring_init(unsigned long size,
 	}
 
 	do {
-		pring = vmalloc(sizeof(struct gnss_ring_t));
+		pring = kmalloc(sizeof(struct gnss_ring_t), GFP_KERNEL);
 		if (!pring) {
 			pr_err("Ring malloc Failed\n");
 			break;
 		}
-		pring->pbuff = vmalloc(size);
+		pring->pbuff = kmalloc(size, GFP_KERNEL);
 		if (!pring->pbuff) {
 			pr_err("Ring buff malloc Failed\n");
 			break;
 		}
-		pring->plock = vmalloc(sizeof(struct mutex));
+		pring->plock = kmalloc(sizeof(struct mutex), GFP_KERNEL);
 		if (!pring->plock) {
 			pr_err("Ring lock malloc Failed\n");
 			break;
@@ -227,8 +225,6 @@ static int gnss_ring_write(struct gnss_ring_t *pring, char *buf, int len)
 		pr_debug("Ring overloop\n");
 		len1 = pend - pring->wp + 1;
 		len2 = len - len1;
-		if (len2 > pring->size)
-			len2 = pring->size;
 		pring->memcpy_wr(pring->wp, buf, len1);
 		pring->memcpy_wr(pstart, (buf + len1), len2);
 		if (pring->wp < pring->rp)

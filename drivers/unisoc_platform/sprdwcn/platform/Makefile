@@ -21,8 +21,7 @@ WCN_MARLIN_COMMON_FILES += bufring.o \
 			   loopcheck.o \
 			   reset.o \
 			   reset_test.o \
-			   rdc_debug.o \
-			   wcn_pm_qos.o
+			   rdc_debug.o
 #			   sysfs.o
 
 #common obj end

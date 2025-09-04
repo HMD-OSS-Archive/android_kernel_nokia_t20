@@ -47,8 +47,8 @@ struct smsg_channel {
 	struct mutex		rxlock;
 	struct sprd_pms	*tx_pms;
 	struct sprd_pms	*rx_pms;
-	char		tx_name[MAX_OBJ_NAME_LEN];
-	char		rx_name[MAX_OBJ_NAME_LEN];
+	char		tx_name[16];
+	char		rx_name[16];
 
 	/* cached msgs for recv */
 	uintptr_t		wrptr[1];
@@ -127,8 +127,6 @@ struct smsg_ipc {
 #define CHAN_STATE_FREE			4
 
 extern void smsg_init_channel2index(void);
-extern void smsg_init_wakeup(void);
-extern void smsg_remove_wakeup(void);
 extern void smsg_ipc_create(struct smsg_ipc *ipc);
 extern void smsg_ipc_destroy(struct smsg_ipc *ipc);
 

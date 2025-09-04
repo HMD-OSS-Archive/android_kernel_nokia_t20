@@ -22,10 +22,10 @@
 
 #define SIPA_IRQ_NAME_SIZE 30
 
-#define SIPA_RECV_CMN_FIFO_NUM 8
-
 #define SIPA_RECV_QUEUES_MAX (num_possible_cpus() > 1 ? \
 			      num_possible_cpus() >> 2 : 1)
+
+#define SIPA_RECV_CMN_FIFO_NUM 8
 
 /**
  * enum sipa_term_type - names for the various IPA source / destination ID
@@ -349,10 +349,6 @@ bool sipa_rm_is_initialized(void);
 
 int sipa_set_enabled(bool enable);
 
-void sipa_udp_is_frag(bool is_frag);
-
-void sipa_udp_is_port(bool is_port);
-
 /*
  * IPA terminal management
  */
@@ -410,7 +406,7 @@ void sipa_recv_wake_up(void);
 /*
  * IPA set hash table sync config
  */
-int sipa_hal_set_hash_sync_req(void);
+void sipa_hal_set_hash_sync_req(void);
 
 /*
  * IPA hash table management
@@ -478,9 +474,6 @@ int sipa_rm_set_usb_eth_up(void);
 void sipa_rm_set_usb_eth_down(void);
 
 void sipa_rm_enable_usb_tether(void);
-
-bool sipa_rm_check_dependency(enum sipa_rm_res_id cons,
-			      enum sipa_rm_res_id prod);
 
 /*
  * SIPA and CP status synchronization.

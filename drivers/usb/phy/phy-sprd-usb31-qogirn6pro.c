@@ -25,16 +25,13 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/kthread.h>
-#include <linux/power/sprd-ump96xx-bc1p2.h>
+#include <linux/power/ump9620-usb-charger.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/phy.h>
-#include <uapi/linux/sched/types.h>
 #include <dt-bindings/soc/sprd,qogirn6pro-mask.h>
 #include <dt-bindings/soc/sprd,qogirn6pro-regs.h>
 #include <linux/usb/sprd_usbm.h>
-#include "ptn38003a-i2c.h"
 
 struct sprd_ssphy {
 	struct usb_phy		phy;
@@ -47,9 +44,6 @@ struct sprd_ssphy {
 	struct regmap		*ana_g0l;
 	struct regmap           *pmic;
 	struct regulator	*vdd;
-	struct kthread_worker bc1p2_kworker;
-	struct kthread_work bc1p2_kwork;
-	struct task_struct *bc1p2_thread;
 	u32			vdd_vol;
 	u32			host_eye_pattern;
 	u32			device_eye_pattern;
@@ -59,9 +53,6 @@ struct sprd_ssphy {
 	atomic_t		inited;
 	atomic_t		susped;
 	bool			is_host;
-	spinlock_t		vbus_event_lock;
-	bool vbus_events;
-	struct mutex lock;
 };
 
 #define PHY_INIT_TIMEOUT 500
@@ -223,7 +214,6 @@ static int sprd_ssphy_set_vbus(struct usb_phy *x, int on)
 	} else {
 		regmap_write(phy->ana_g0l, REG_ANLG_PHY_G0L_ANALOG_USB20_USB20_TRIMMING,
 					phy->device_eye_pattern);
-
 		if (!sprd_usbm_hsphy_get_onoff()) {
 			reg = msk = MASK_AON_APB_USB2_PHY_IDDIG;
 			ret |= regmap_update_bits(phy->aon_apb,
@@ -292,12 +282,11 @@ static int sprd_ssphy_init(struct usb_phy *x)
 	int	ret = 0;
 	int timeout;
 
+	printk(KERN_INFO "sprd_ssphy_init enter \n");
 	if (atomic_read(&phy->inited)) {
 		dev_info(x->dev, "%s is already inited!\n", __func__);
 		return 0;
 	}
-
-	ptn38003a_mode_usb32_set(1);
 
 	/*
 	 * Due to chip design, some chips may turn on vddusb by default,
@@ -326,15 +315,15 @@ static int sprd_ssphy_init(struct usb_phy *x)
 	ret |= regmap_update_bits(phy->aon_apb, REG_AON_APB_CGM_REG1, msk, reg);
 
 	/*enable analog:0x64900004*/
-	reg = MASK_AON_APB_AON_USB2_TOP_EB | MASK_AON_APB_OTG_PHY_EB |
+	ret |= regmap_read(phy->aon_apb, REG_AON_APB_APB_EB1, &reg);
+	reg |= MASK_AON_APB_AON_USB2_TOP_EB | MASK_AON_APB_OTG_PHY_EB |
 						MASK_AON_APB_ANA_EB;
-	msk = reg;
-	ret |= regmap_update_bits(phy->aon_apb, REG_AON_APB_APB_EB1, msk, reg);
+	ret |= regmap_write(phy->aon_apb, REG_AON_APB_APB_EB1, reg);
 
 	/* utmisrp_bvalid  sys vbus valid:0x64900D14*/
-	reg = MASK_AON_APB_SYS_VBUSVALID;
-	msk = reg;
-	ret |= regmap_update_bits(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, msk, reg);
+	ret |= regmap_read(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, &reg);
+	reg |= MASK_AON_APB_SYS_VBUSVALID;
+	ret |= regmap_write(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, reg);
 
 	/*  usb eb and usb ref eb :0x25000004*/
 	ret |= regmap_read(phy->ipa_apb, REG_IPA_APB_IPA_EB, &reg);
@@ -342,26 +331,17 @@ static int sprd_ssphy_init(struct usb_phy *x)
 	ret |= regmap_write(phy->ipa_apb, REG_IPA_APB_IPA_EB, reg);
 
 	/* usb suspend eb :0x64900138*/
-	reg = MASK_AON_APB_CGM_USB_SUSPEND_EN;
-	msk = reg;
-	ret |= regmap_update_bits(phy->aon_apb, REG_AON_APB_CGM_REG1, msk, reg);
-
-	/*
-	 * USB2 PHY power on: set pd_l/pd_s firstly, then set iso_sw.
-	 * poweroff sequence is opposite
-	 */
-	msk = MASK_AON_APB_LVDSRF_PD_PD_L | MASK_AON_APB_LVDSRF_PS_PD_S;
-	regmap_update_bits(phy->aon_apb, REG_AON_APB_MIPI_CSI_POWER_CTRL, msk, 0);
+	ret |= regmap_read(phy->aon_apb, REG_AON_APB_CGM_REG1, &reg);
+	reg |= MASK_AON_APB_CGM_USB_SUSPEND_EN;
+	ret |= regmap_write(phy->aon_apb, REG_AON_APB_CGM_REG1, reg);
 
 	ret |= regmap_update_bits(phy->ana_g0l,
 		REG_ANLG_PHY_G0L_ANALOG_USB20_USB20_PHY,
 		BIT_ANLG_PHY_G0L_ANALOG_USB20_USB20_ISO_SW_EN, 0);
 
-	/* enable usb20 ISO AVDD1V8_USB*/
-	msk = MASK_AON_APB_USB20_ISO_SW_EN;
-	ret |= regmap_update_bits(phy->aon_apb, REG_AON_APB_AON_SOC_USB_CTRL,
-			 msk, 0);
-
+	/* USB2 PHY power on */
+	msk = MASK_AON_APB_LVDSRF_PD_PD_L | MASK_AON_APB_LVDSRF_PS_PD_S;
+	regmap_update_bits(phy->aon_apb, REG_AON_APB_MIPI_CSI_POWER_CTRL, msk, 0);
 	/* ssphy power on @0x64900d14*/
 	msk = MASK_AON_APB_PHY_TEST_POWERDOWN;
 	regmap_update_bits(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, msk, 0);
@@ -382,7 +362,6 @@ static int sprd_ssphy_init(struct usb_phy *x)
 
 	regmap_write(phy->ana_g0l, REG_ANLG_PHY_G0L_ANALOG_USB20_USB20_TRIMMING,
 					phy->device_eye_pattern);
-
 	/* Reset PHY */
 	sprd_ssphy_reset_core(phy);
 
@@ -448,24 +427,16 @@ static int sprd_ssphy_init(struct usb_phy *x)
 	writel_relaxed(reg, phy->base + 0x04);
 
 	/* usb3 switch port */
-	/* remove usbonly,add combophy for dp/usb */
 	ret |= regmap_read(phy->aon_apb, REG_AON_APB_BOOT_MODE, &reg);
 	msk = readl_relaxed(phy->base + 0x14);
 	if ((reg & BIT(10))) {
-		msk &= ~(BIT(2) | BIT(3));
-		msk |= BIT(0) | BIT(1) | BIT(4);
+		msk &= ~(BIT(1) | BIT(2) | BIT(3));
+		msk |= BIT(0) | BIT(4);
 	} else {
-		msk &= ~BIT(3);
-		msk |= BIT(0) | BIT(1) | BIT(2) | BIT(4);
+		msk &= ~(BIT(1) | BIT(3));
+		msk |= BIT(0) | BIT(2) | BIT(4);
 	}
 	writel_relaxed(msk, phy->base + 0x14);
-
-	msk = readl_relaxed(phy->base + 0x18);
-	if (reg & BIT(10))
-		msk &= ~BIT(2);
-	else
-		msk |= BIT(2);
-	writel_relaxed(msk, phy->base + 0x18);
 
 	msleep(10);
 	/* wait tca interrupt */
@@ -495,6 +466,8 @@ static int sprd_ssphy_init(struct usb_phy *x)
 
 	atomic_set(&phy->inited, 1);
 
+	printk(KERN_INFO "ssphy_init exit \n");
+
 	return ret;
 }
 
@@ -502,7 +475,7 @@ static int sprd_ssphy_init(struct usb_phy *x)
 static void sprd_ssphy_shutdown(struct usb_phy *x)
 {
 	struct sprd_ssphy *phy = container_of(x, struct sprd_ssphy, phy);
-	u32 msk = 0, reg = 0;
+	u32 msk, reg;
 
 	if (!atomic_read(&phy->inited)) {
 		dev_dbg(x->dev, "%s is already shut down\n", __func__);
@@ -522,12 +495,6 @@ static void sprd_ssphy_shutdown(struct usb_phy *x)
 		/*hsphy vbus invalid */
 		msk = MASK_AON_APB_OTG_VBUS_VALID_PHYREG;
 		regmap_update_bits(phy->aon_apb, REG_AON_APB_OTG_PHY_TEST, msk, 0);
-
-		/* disable usb20 ISO*/
-		msk = MASK_AON_APB_USB20_ISO_SW_EN;
-		reg = msk;
-		regmap_update_bits(phy->aon_apb, REG_AON_APB_AON_SOC_USB_CTRL,
-				 msk, reg);
 
 		/* hsphy power off */
 		msk = MASK_AON_APB_LVDSRF_PD_PD_L | MASK_AON_APB_LVDSRF_PS_PD_S;
@@ -560,13 +527,10 @@ static void sprd_ssphy_shutdown(struct usb_phy *x)
 
 	/*
 	 * Due to chip design, some chips may turn on vddusb by default,
-	 * we MUST avoid turning it off twice.
+	 * We MUST avoid turning it off twice.
 	 */
-
-	if (regulator_is_enabled(phy->vdd))
+	if (phy->vdd)
 		regulator_disable(phy->vdd);
-
-	ptn38003a_mode_usb32_set(0);
 
 	atomic_set(&phy->inited, 0);
 	atomic_set(&phy->reset, 0);
@@ -685,53 +649,6 @@ static struct attribute *usb_ssphy_attrs[] = {
 };
 ATTRIBUTE_GROUPS(usb_ssphy);
 
-static void sprd_ssphy_get_bc1p2_type_work(struct kthread_work *work)
-{
-	struct sprd_ssphy *phy = container_of(work, struct sprd_ssphy, bc1p2_kwork);
-	struct usb_phy *usb_phy;
-	bool vbus_events;
-
-	if (!phy) {
-		pr_err("%s:line%d: phy NULL pointer!!!\n", __func__, __LINE__);
-		return;
-	}
-
-	usb_phy = &phy->phy;
-	if (!usb_phy) {
-		pr_err("%s:line%d: usb_phy NULL pointer!!!\n", __func__, __LINE__);
-		return;
-	}
-
-	mutex_lock(&phy->lock);
-	spin_lock(&phy->vbus_event_lock);
-	while (phy->vbus_events) {
-		vbus_events = phy->vbus_events;
-		phy->vbus_events = false;
-		spin_unlock(&phy->vbus_event_lock);
-		if (vbus_events)
-			sprd_bc1p2_notify_charger(usb_phy);
-		spin_lock(&phy->vbus_event_lock);
-	}
-
-	spin_unlock(&phy->vbus_event_lock);
-	mutex_unlock(&phy->lock);
-}
-
-static void sprd_ssphy_usb_changed(struct sprd_ssphy *phy, enum usb_charger_state state)
-{
-	struct usb_phy *usb_phy = &phy->phy;
-
-	spin_lock(&phy->vbus_event_lock);
-	phy->vbus_events = true;
-
-	usb_phy->chg_state = state;
-
-	spin_unlock(&phy->vbus_event_lock);
-
-	if (phy->bc1p2_thread)
-		kthread_queue_work(&phy->bc1p2_kworker, &phy->bc1p2_kwork);
-}
-
 static int sprd_ssphy_vbus_notify(struct notifier_block *nb,
 				unsigned long event, void *data)
 {
@@ -748,80 +665,22 @@ static int sprd_ssphy_vbus_notify(struct notifier_block *nb,
 		return 0;
 	}
 
-	if (event)
-		sprd_ssphy_usb_changed(phy, USB_CHARGER_PRESENT);
-	else
-		sprd_ssphy_usb_changed(phy, USB_CHARGER_ABSENT);
+	if (event) {
+		usb_phy_set_charger_state(usb_phy, USB_CHARGER_PRESENT);
+	} else {
+		usb_phy_set_charger_state(usb_phy, USB_CHARGER_ABSENT);
+	}
 
 	return 0;
 }
 
 static enum usb_charger_type sprd_ssphy_charger_detect(struct usb_phy *x)
 {
-	enum usb_charger_type type = UNKNOWN_TYPE;
-
-	type = sprd_bc1p2_charger_detect(x);
-
-	return type;
-}
-
-static int sprd_ssphy_notify_connect(struct usb_phy *x,
-				enum usb_device_speed speed)
-{
 	struct sprd_ssphy *phy = container_of(x, struct sprd_ssphy, phy);
-	u32 msk = 0, reg = 0;
 
-	if (!atomic_read(&phy->inited)) {
-		dev_info(x->dev, "%s phy is not inited!\n", __func__);
-		return 0;
-	}
-
-	if (phy->is_host)
-		return 0;
-
-	/*hsphy vbus valid */
-	msk = MASK_AON_APB_OTG_VBUS_VALID_PHYREG;
-	reg = msk;
-	regmap_update_bits(phy->aon_apb, REG_AON_APB_OTG_PHY_TEST, msk, reg);
-	/*ssphy vbus valid */
-	msk = MASK_AON_APB_SYS_VBUSVALID;
-	reg = msk;
-	regmap_update_bits(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, msk, reg);
-
-	msk = BIT_ANLG_PHY_G0L_ANALOG_USB20_USB20_VBUSVLDEXT;
-	reg = msk;
-	regmap_update_bits(phy->ana_g0l,
-			REG_ANLG_PHY_G0L_ANALOG_USB20_USB20_UTMI_CTL1,	msk, reg);
-	dev_info(x->dev, "ssphy set vbus valid!\n");
-	return 0;
-}
-
-static int sprd_ssphy_notify_disconnect(struct usb_phy *x,
-				enum usb_device_speed speed)
-{
-	struct sprd_ssphy *phy = container_of(x, struct sprd_ssphy, phy);
-	u32 msk = 0;
-
-	if (!atomic_read(&phy->inited)) {
-		dev_info(x->dev, "%s phy is not inited!\n", __func__);
-		return 0;
-	}
-
-	if (phy->is_host)
-		return 0;
-
-	/*hsphy vbus invalid */
-	msk = MASK_AON_APB_OTG_VBUS_VALID_PHYREG;
-	regmap_update_bits(phy->aon_apb, REG_AON_APB_OTG_PHY_TEST, msk, 0);
-	/*ssphy vbus invalid */
-	msk = MASK_AON_APB_SYS_VBUSVALID;
-	regmap_update_bits(phy->aon_apb, REG_AON_APB_USB31DPCOMBPHY_CTRL, msk, 0);
-
-	msk = BIT_ANLG_PHY_G0L_ANALOG_USB20_USB20_VBUSVLDEXT;
-	regmap_update_bits(phy->ana_g0l,
-			REG_ANLG_PHY_G0L_ANALOG_USB20_USB20_UTMI_CTL1,	msk, 0);
-	dev_info(x->dev, "ssphy set vbus invalid!\n");
-	return 0;
+	if (!phy->pmic)
+		return UNKNOWN_TYPE;
+	return sc27xx_charger_detect(phy->pmic);
 }
 
 static int sprd_ssphy_probe(struct platform_device *pdev)
@@ -831,10 +690,10 @@ static int sprd_ssphy_probe(struct platform_device *pdev)
 	struct sprd_ssphy *phy;
 	struct device *dev = &pdev->dev;
 	struct resource *res;
-	struct sched_param param = { .sched_priority = 1 };
 	int ret;
 	u32 reg, msk;
 
+	printk(KERN_INFO "sprd_ssphy_probe enter \n");
 	phy = devm_kzalloc(dev, sizeof(*phy), GFP_KERNEL);
 	if (!phy)
 		return -ENOMEM;
@@ -965,24 +824,6 @@ static int sprd_ssphy_probe(struct platform_device *pdev)
 	phy->phy.type				= USB_PHY_TYPE_USB3;
 	phy->phy.vbus_nb.notifier_call		= sprd_ssphy_vbus_notify;
 	phy->phy.charger_detect			= sprd_ssphy_charger_detect;
-	/*
-	 * notify_connect is used to set vbusvalid
-	 * notify_disconnect is used to set vbusinvalid
-	 */
-	phy->phy.notify_connect			= sprd_ssphy_notify_connect;
-	phy->phy.notify_disconnect		= sprd_ssphy_notify_disconnect;
-	mutex_init(&phy->lock);
-	spin_lock_init(&phy->vbus_event_lock);
-	kthread_init_worker(&phy->bc1p2_kworker);
-	kthread_init_work(&phy->bc1p2_kwork, sprd_ssphy_get_bc1p2_type_work);
-	phy->bc1p2_thread = kthread_run(kthread_worker_fn, &phy->bc1p2_kworker,
-					"ssphy_bc1p2_worker");
-	if (IS_ERR(phy->bc1p2_thread)) {
-		phy->bc1p2_thread = NULL;
-		dev_err(dev, "failed to run bc1p2_thread\n");
-	} else {
-		sched_setscheduler(phy->bc1p2_thread, SCHED_FIFO, &param);
-	}
 
 	ret = usb_add_phy_dev(&phy->phy);
 	if (ret) {
@@ -997,7 +838,7 @@ static int sprd_ssphy_probe(struct platform_device *pdev)
 	pm_runtime_enable(dev);
 
 	if (extcon_get_state(phy->phy.edev, EXTCON_USB) > 0)
-		sprd_ssphy_usb_changed(phy, USB_CHARGER_PRESENT);
+		usb_phy_set_charger_state(&phy->phy, USB_CHARGER_PRESENT);
 
 	return 0;
 }
@@ -1006,15 +847,9 @@ static int sprd_ssphy_remove(struct platform_device *pdev)
 {
 	struct sprd_ssphy *phy = platform_get_drvdata(pdev);
 
-	if (phy->bc1p2_thread) {
-		kthread_flush_worker(&phy->bc1p2_kworker);
-		kthread_stop(phy->bc1p2_thread);
-		phy->bc1p2_thread = NULL;
-	}
 	sysfs_remove_groups(&pdev->dev.kobj, usb_ssphy_groups);
 	usb_remove_phy(&phy->phy);
-	if (regulator_is_enabled(phy->vdd))
-		regulator_disable(phy->vdd);
+	regulator_disable(phy->vdd);
 	return 0;
 }
 

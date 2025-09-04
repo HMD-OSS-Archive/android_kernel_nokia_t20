@@ -15,7 +15,6 @@
 #include <linux/slab.h>
 
 #include <dt-bindings/clock/sprd,ums9620-clk.h>
-#include <dt-bindings/reset/sprd,ums9620-reset.h>
 
 #include "common.h"
 #include "composite.h"
@@ -23,7 +22,6 @@
 #include "gate.h"
 #include "mux.h"
 #include "pll.h"
-#include "reset.h"
 
 #define UMS9620_MUX_FLAG	\
 	(CLK_GET_RATE_NOCACHE | CLK_SET_RATE_NO_REPARENT)
@@ -144,43 +142,16 @@ static struct clk_hw_onecell_data ums9620_pmu_gate_hws = {
 	.num = CLK_PMU_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_pmu_apb_resets[] = {
-	[RESET_PMU_APB_AUD_CEVA_SOFT_RST]	= { 0x0b88, BIT(0), 0x1000 },
-	[RESET_PMU_APB_AP_SOFT_RST]		= { 0x0b98, BIT(0), 0x1000 },
-	[RESET_PMU_APB_APCPU_TOP_SOFT_RST]	= { 0x0b98, BIT(1), 0x1000 },
-	[RESET_PMU_APB_GPU_SOFT_RST]		= { 0x0b98, BIT(2), 0x1000 },
-	[RESET_PMU_APB_CAMERA_SOFT_RST]		= { 0x0b98, BIT(3), 0x1000 },
-	[RESET_PMU_APB_DPU_VSP_SOFT_RST]	= { 0x0b98, BIT(4), 0x1000 },
-	[RESET_PMU_APB_AI_SOFT_RST]		= { 0x0b98, BIT(8), 0x1000 },
-	[RESET_PMU_APB_PS_CP_SOFT_RST]		= { 0x0b98, BIT(11), 0x1000 },
-	[RESET_PMU_APB_PHY_CP_SOFT_RST]		= { 0x0b98, BIT(14), 0x1000 },
-	[RESET_PMU_APB_CDMA_PROC0_SOFT_RST]	= { 0x0b98, BIT(18), 0x1000 },
-	[RESET_PMU_APB_AUDIO_SOFT_RST]		= { 0x0b98, BIT(22), 0x1000 },
-	[RESET_PMU_APB_IPA_SOFT_RST]		= { 0x0b98, BIT(24), 0x1000 },
-	[RESET_PMU_APB_PCIE_SOFT_RST]		= { 0x0b98, BIT(25), 0x1000 },
-	[RESET_PMU_APB_ISE_SOFT_RST]		= { 0x0b98, BIT(27), 0x1000 },
-	[RESET_PMU_APB_CS_SOFT_RST]		= { 0x0b98, BIT(29), 0x1000 },
-	[RESET_PMU_APB_AON_SOFT_RST]		= { 0x0b98, BIT(30), 0x1000 },
-	[RESET_PMU_APB_SP_SOFT_RST]		= { 0x0b9c, BIT(0), 0x1000 },
-	[RESET_PMU_APB_CH_SOFT_RST]		= { 0x0b9c, BIT(1), 0x1000 },
-	[RESET_PMU_APB_PUB_SOFT_RST]		= { 0x0b9c, BIT(4), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_pmu_gate_desc = {
 	.clk_clks	= ums9620_pmu_gate_clks,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_pmu_gate_clks),
 	.hw_clks        = &ums9620_pmu_gate_hws,
-	.resets	= ums9620_pmu_apb_resets,
-	.num_resets	= ARRAY_SIZE(ums9620_pmu_apb_resets),
 };
 
 /* pll clock at g1 */
-static struct freq_table rpll_ftable[] = {
-	{ .ibias = 1, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 2800000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 3200000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 rpll_ftable[5] = {4, 0,
+			2000000000ULL, 2800000000ULL,
+			3200000000ULL};
 
 static struct clk_bit_field f_rpll[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -193,12 +164,10 @@ static struct clk_bit_field f_rpll[PLL_FACT_MAX] = {
 	{ .shift = 55,	.width = 8 },	/* nint		*/
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
-	{ .shift = 66,	.width = 2 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
+	{ .shift = 66,	.width = 1 },	/* postdiv	*/
 };
 
-static SPRD_PLL_HW(rpll, "rpll", &clk_26m_aud.hw, 0x10,
+static SPRD_PLL_FW_NAME(rpll, "rpll", "ext-26m", 0x10,
 				   3, rpll_ftable, f_rpll, 240,
 				   1000, 1000, 1, 1560000000);
 static CLK_FIXED_FACTOR_HW(rpll_390m, "rpll-390m", &rpll.common.hw, 2, 1, 0);
@@ -225,12 +194,9 @@ static struct sprd_clk_desc ums9620_g1_pll_desc = {
 };
 
 /* pll at g1l */
-static struct freq_table dpll_ftable[4] = {
-	{ .ibias = 1, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 2800000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 3200000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 dpll_ftable[5] = {4, 0,
+			2000000000ULL, 2800000000ULL,
+			3200000000ULL};
 
 static struct clk_bit_field f_dpll[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -243,9 +209,7 @@ static struct clk_bit_field f_dpll[PLL_FACT_MAX] = {
 	{ .shift = 55,	.width = 8 },	/* nint		*/
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
-	{ .shift = 66,	.width = 4 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
+	{ .shift = 66,	.width = 1 },	/* postdiv	*/
 };
 
 static SPRD_PLL_FW_NAME(dpll0, "dpll0", "ext-26m", 0x4,
@@ -283,12 +247,9 @@ static struct sprd_clk_desc ums9620_g1l_pll_desc = {
 };
 
 /* pll at g5l */
-static struct freq_table tgpll_ftable[4] = {
-	{ .ibias = 1, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 2800000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 3200000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 tgpll_ftable[5] = {4, 0,
+			2000000000ULL, 2800000000ULL,
+			3200000000ULL};
 
 static struct clk_bit_field f_tgpll[PLL_FACT_MAX] = {
 	{ .shift = 17,	.width = 1 },	/* lock_done	*/
@@ -302,13 +263,11 @@ static struct clk_bit_field f_tgpll[PLL_FACT_MAX] = {
 	{ .shift = 39,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 68,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 static SPRD_PLL_FW_NAME(tgpll, "tgpll", "ext-26m", 0x4,
 				   3, tgpll_ftable, f_tgpll, 240,
-				   1000, 1000, 1, 1600000000);
+				   1000, 1000, 1, 1500000000);
 static CLK_FIXED_FACTOR_HW(tgpll_12m, "tgpll-12m", &tgpll.common.hw, 128, 1, 0);
 static CLK_FIXED_FACTOR_HW(tgpll_24m, "tgpll-24m", &tgpll.common.hw, 64, 1, 0);
 static CLK_FIXED_FACTOR_HW(tgpll_38m4, "tgpll-38m4", &tgpll.common.hw, 40, 1, 0);
@@ -339,8 +298,6 @@ static struct clk_bit_field f_psr8pll[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 35,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 #define psr8pll_ftable tgpll_ftable
@@ -356,12 +313,10 @@ static struct clk_bit_field f_v4nrpll[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* refin	*/
 	{ .shift = 3,	.width = 3 },	/* icp		*/
 	{ .shift = 6,	.width = 11 },	/* n		*/
-	{ .shift = 55,	.width = 7 },	/* nint		*/
+	{ .shift = 55,	.width = 8 },	/* nint		*/
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 81,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 #define v4nrpll_ftable tgpll_ftable
@@ -419,12 +374,9 @@ static struct sprd_clk_desc ums9620_g5l_pll_desc = {
 };
 
 /* pll at g5r */
-static struct freq_table gpll_ftable[4] = {
-	{ .ibias = 1, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 2800000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 3200000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 gpll_ftable[5] = {4, 0,
+			2000000000ULL, 2800000000ULL,
+			3200000000ULL};
 
 static struct clk_bit_field f_gpll[PLL_FACT_MAX] = {
 	{ .shift = 14,	.width = 1 },	/* lock_done	*/
@@ -438,8 +390,6 @@ static struct clk_bit_field f_gpll[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 35,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 static SPRD_PLL_FW_NAME(gpll, "gpll", "ext-26m", 0x0,
@@ -472,8 +422,6 @@ static struct clk_bit_field f_cpll[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 68,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 #define cpll_ftable gpll_ftable
 static SPRD_PLL_FW_NAME(cpll, "cpll", "ext-26m", 0x48,
@@ -492,8 +440,6 @@ static struct clk_bit_field f_audpll[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 67,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 #define audpll_ftable gpll_ftable
@@ -558,20 +504,13 @@ static struct sprd_clk_desc ums9620_g5r_pll_desc = {
 };
 
 /* pll at g8 */
-static struct freq_table mpllb_ftable[12] = {
-	{ .ibias = 7,  .max_freq = 1200000000ULL,  .vco_sel = 1 },
-	{ .ibias = 8,  .max_freq = 1400000000ULL,  .vco_sel = 1 },
-	{ .ibias = 9,  .max_freq = 1600000000ULL,  .vco_sel = 1 },
-	{ .ibias = 10, .max_freq = 1800000000ULL,  .vco_sel = 1 },
-	{ .ibias = 11, .max_freq = 2000000000ULL,  .vco_sel = 1 },
-	{ .ibias = 7,  .max_freq = 2200000000ULL,  .vco_sel = 0 },
-	{ .ibias = 8,  .max_freq = 2400000000ULL,  .vco_sel = 0 },
-	{ .ibias = 9,  .max_freq = 2600000000ULL,  .vco_sel = 0 },
-	{ .ibias = 10, .max_freq = 2800000000ULL,  .vco_sel = 0 },
-	{ .ibias = 11, .max_freq = 3000000000ULL,  .vco_sel = 0 },
-	{ .ibias = 12, .max_freq = 3200000000ULL,  .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 mpllb_ftable[15] = {14, 0, 0, 0,
+			1200000000ULL, 1400000000ULL,
+			1600000000ULL, 1800000000ULL,
+			2000000000ULL, 2200000000ULL,
+			2400000000ULL, 2600000000ULL,
+			2800000000ULL, 3000000000ULL,
+			3200000000ULL};
 
 static struct clk_bit_field f_mpllb[PLL_FACT_MAX] = {
 	{ .shift = 15,	.width = 1 },	/* lock_done	*/
@@ -585,13 +524,11 @@ static struct clk_bit_field f_mpllb[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 67,	.width = 4 },	/* postdiv	*/
-	{ .shift = 66,	.width = 1 },	/* refdiv	*/
-	{ .shift = 96,	.width = 1 },	/* vco_sel	*/
 };
 
 static SPRD_PLL_FW_NAME(mpllb, "mpllb", "ext-26m", 0x0,
-				   4, mpllb_ftable, f_mpllb, 240,
-				   1000, 1000, 1, 1200000000);
+				   3, mpllb_ftable, f_mpllb, 240,
+				   1000, 1000, 1, 1000000000);
 
 static struct sprd_clk_common *ums9620_g8_pll_clks[] = {
 	/* address base is 0x6432c000 */
@@ -623,15 +560,13 @@ static struct clk_bit_field f_mpllm[PLL_FACT_MAX] = {
 	{ .shift = 0,	.width = 0 },	/* nint		*/
 	{ .shift = 0,	.width = 0},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
-	{ .shift = 68,	.width = 4 },	/* postdiv	*/
-	{ .shift = 67,	.width = 1 },	/* refdiv	*/
-	{ .shift = 96,	.width = 1 },	/* vco_sel	*/
+	{ .shift = 67,	.width = 1 },	/* postdiv	*/
 };
 
 #define mpllm_ftable mpllb_ftable
 static SPRD_PLL_FW_NAME(mpllm, "mpllm", "ext-26m", 0x0,
-				   4, mpllm_ftable, f_mpllm, 240,
-				   1000, 1000, 1, 1200000000);
+				   3, mpllm_ftable, f_mpllm, 240,
+				   1000, 1000, 1, 1000000000);
 
 static struct sprd_clk_common *ums9620_g9_pll_clks[] = {
 	/* address base is 0x64330000 */
@@ -655,28 +590,14 @@ static struct sprd_clk_desc ums9620_g9_pll_desc = {
 #define mplll_ftable mpllb_ftable
 #define f_mplll f_mpllm
 static SPRD_PLL_FW_NAME(mplll, "mplll", "ext-26m", 0x0,
-				   4, mplll_ftable, f_mplll, 240,
-				   1000, 1000, 1, 1200000000);
+				   3, mplll_ftable, f_mplll, 240,
+				   1000, 1000, 1, 1000000000);
 
-static struct clk_bit_field f_mplls[PLL_FACT_MAX] = {
-	{ .shift = 15,	.width = 1 },	/* lock_done	*/
-	{ .shift = 0,	.width = 0 },	/* div_s	*/
-	{ .shift = 0,	.width = 0 },	/* mod_en	*/
-	{ .shift = 0,	.width = 0 },	/* sdm_en	*/
-	{ .shift = 0,	.width = 0 },	/* refin	*/
-	{ .shift = 0,	.width = 4 },	/* icp		*/
-	{ .shift = 4,	.width = 11 },	/* n		*/
-	{ .shift = 0,	.width = 0 },	/* nint		*/
-	{ .shift = 0,	.width = 0},	/* kint		*/
-	{ .shift = 0,	.width = 0 },	/* prediv	*/
-	{ .shift = 67,	.width = 4 },	/* postdiv	*/
-	{ .shift = 71,	.width = 1 },	/* refdiv	*/
-	{ .shift = 96,	.width = 1 },	/* vco_sel	*/
-};
 #define mplls_ftable mpllb_ftable
+#define f_mplls f_mpllb
 static SPRD_PLL_FW_NAME(mplls, "mplls", "ext-26m", 0x20,
-				   4, mplls_ftable, f_mplls, 240,
-				   1000, 1000, 1, 1200000000);
+				   3, mplls_ftable, f_mplls, 240,
+				   1000, 1000, 1, 1000000000);
 
 static struct sprd_clk_common *ums9620_g10_pll_clks[] = {
 	/* address base is 0x64334000 */
@@ -774,28 +695,10 @@ static struct clk_hw_onecell_data ums9620_apapb_gate_hws = {
 	.num	= CLK_AP_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ap_apb_resets[] = {
-	[RESET_AP_APB_IIS0_SOFT_RST]	= { 0x0004, BIT(1), 0x1000 },
-	[RESET_AP_APB_IIS1_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_AP_APB_IIS2_SOFT_RST]	= { 0x0004, BIT(3), 0x1000 },
-	[RESET_AP_APB_SPI0_SOFT_RST]	= { 0x0004, BIT(4), 0x1000 },
-	[RESET_AP_APB_SPI1_SOFT_RST]	= { 0x0004, BIT(5), 0x1000 },
-	[RESET_AP_APB_SPI2_SOFT_RST]	= { 0x0004, BIT(6), 0x1000 },
-	[RESET_AP_APB_UART3_SOFT_RST]	= { 0x0004, BIT(7), 0x1000 },
-	[RESET_AP_APB_UART0_SOFT_RST]	= { 0x0004, BIT(13), 0x1000 },
-	[RESET_AP_APB_UART1_SOFT_RST]	= { 0x0004, BIT(14), 0x1000 },
-	[RESET_AP_APB_UART2_SOFT_RST]	= { 0x0004, BIT(15), 0x1000 },
-	[RESET_AP_APB_CE_SEC_SOFT_RST]	= { 0x0004, BIT(20), 0x1000 },
-	[RESET_AP_APB_CE_PUB_SOFT_RST]	= { 0x0004, BIT(21), 0x1000 },
-	[RESET_AP_APB_AP_DVFS_SOFT_RST]	= { 0x0004, BIT(22), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_apapb_gate_desc = {
 	.clk_clks	= ums9620_apapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_apapb_gate),
 	.hw_clks	= &ums9620_apapb_gate_hws,
-	.resets = ums9620_ap_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ap_apb_resets),
 };
 
 /* ap ahb gates */
@@ -907,31 +810,10 @@ static struct clk_hw_onecell_data ums9620_apahb_gate_hws = {
 	.num	= CLK_AP_AHB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ap_ahb_resets[] = {
-	[RESET_AP_AHB_SDIO0_SOFT_RST]	= { 0x0004, BIT(0), 0x1000 },
-	[RESET_AP_AHB_SDIO1_SOFT_RST]	= { 0x0004, BIT(1), 0x1000 },
-	[RESET_AP_AHB_SDIO2_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_AP_AHB_EMMC_SOFT_RST]	= { 0x0004, BIT(3), 0x1000 },
-	[RESET_AP_AHB_UFS_SOFT_RST]	= { 0x0004, BIT(6), 0x1000 },
-	[RESET_AP_AHB_DMA_SOFT_RST]	= { 0x0004, BIT(8), 0x1000 },
-	[RESET_AP_AHB_I2C0_SOFT_RST]	= { 0x0004, BIT(16), 0x1000 },
-	[RESET_AP_AHB_I2C1_SOFT_RST]	= { 0x0004, BIT(17), 0x1000 },
-	[RESET_AP_AHB_I2C2_SOFT_RST]	= { 0x0004, BIT(18), 0x1000 },
-	[RESET_AP_AHB_I2C3_SOFT_RST]	= { 0x0004, BIT(19), 0x1000 },
-	[RESET_AP_AHB_I2C4_SOFT_RST]	= { 0x0004, BIT(20), 0x1000 },
-	[RESET_AP_AHB_I2C5_SOFT_RST]	= { 0x0004, BIT(21), 0x1000 },
-	[RESET_AP_AHB_I2C6_SOFT_RST]	= { 0x0004, BIT(22), 0x1000 },
-	[RESET_AP_AHB_I2C7_SOFT_RST]	= { 0x0004, BIT(23), 0x1000 },
-	[RESET_AP_AHB_I2C8_SOFT_RST]	= { 0x0004, BIT(24), 0x1000 },
-	[RESET_AP_AHB_I2C9_SOFT_RST]	= { 0x0004, BIT(25), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_apahb_gate_desc = {
 	.clk_clks	= ums9620_apahb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_apahb_gate),
 	.hw_clks	= &ums9620_apahb_gate_hws,
-	.resets = ums9620_ap_ahb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ap_ahb_resets),
 };
 
 /* ap clks */
@@ -1014,11 +896,11 @@ static const struct clk_parent_data iis_parents[] = {
 	{ .hw = &tgpll_512m.hw },
 };
 static SPRD_COMP_CLK_DATA_OFFSET(ap_iis0, "ap-iis0", iis_parents,
-			    0xf4, 0, 3, 0, 6, 0);
+			    0xf4, 0, 3, 0, 3, 0);
 static SPRD_COMP_CLK_DATA_OFFSET(ap_iis1, "ap-iis1", iis_parents,
-			    0x100, 0, 3, 0, 6, 0);
+			    0x100, 0, 3, 0, 3, 0);
 static SPRD_COMP_CLK_DATA_OFFSET(ap_iis2, "ap-iis2", iis_parents,
-			    0x10c, 0, 3, 0, 6, 0);
+			    0x10c, 0, 3, 0, 3, 0);
 
 static const struct clk_parent_data ap_ce_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -1038,7 +920,7 @@ static const struct clk_parent_data sdio_parents[] = {
 	{ .hw = &v4nrpll_409m6.hw },
 };
 static SPRD_COMP_CLK_DATA_OFFSET(emmc_2x, "emmc-2x", sdio_parents,
-			    0x124, 0, 3, 0, 11, 0);
+			    0x124, 0, 3, 0, 3, 0);
 static SPRD_DIV_CLK_HW(emmc_1x, "emmc-1x", &emmc_2x.common.hw, 0x12c,
 		    0, 1, 0);
 
@@ -1335,9 +1217,9 @@ static SPRD_SC_GATE_CLK_FW_NAME(sdio2_2x_en, "sdio2-2x-en", "ext-26m", 0x13c,
 			0x1000, BIT(6), 0, 0);
 static SPRD_SC_GATE_CLK_FW_NAME(sdio2_1x_en, "sdio2-1x-en", "ext-26m", 0x13c,
 			0x1000, BIT(7), 0, 0);
-static SPRD_SC_GATE_CLK_FW_NAME(emmc_1x_en, "emmc-1x-en", "ext-26m", 0x13c,
-			0x1000, BIT(8), 0, 0);
 static SPRD_SC_GATE_CLK_FW_NAME(emmc_2x_en, "emmc-2x-en", "ext-26m", 0x13c,
+			0x1000, BIT(8), 0, 0);
+static SPRD_SC_GATE_CLK_FW_NAME(emmc_1x_en, "emmc-1x-en", "ext-26m", 0x13c,
 			0x1000, BIT(9), 0, 0);
 static SPRD_SC_GATE_CLK_FW_NAME(pll_test_en, "pll-test-en", "ext-26m", 0x13c,
 			0x1000, BIT(14), 0, 0);
@@ -1382,15 +1264,15 @@ static const struct clk_parent_data aux_parents[] = {
 	{ .hw = &audpll_12m28.hw },
 	{ .hw = &audpll_24m57.hw },
 };
-static SPRD_SC_COMP_CLK_DATA(aux0_clk, "aux0-clk", aux_parents, 0x240,
+static SPRD_COMP_CLK_DATA(aux0_clk, "aux0-clk", aux_parents, 0x240,
 		    6, 6, 0, 6, 0);
-static SPRD_SC_COMP_CLK_DATA(aux1_clk, "aux1-clk", aux_parents, 0x244,
+static SPRD_COMP_CLK_DATA(aux1_clk, "aux1-clk", aux_parents, 0x244,
 		    6, 6, 0, 6, 0);
-static SPRD_SC_COMP_CLK_DATA(aux2_clk, "aux2-clk", aux_parents, 0x248,
+static SPRD_COMP_CLK_DATA(aux2_clk, "aux2-clk", aux_parents, 0x248,
 		    6, 6, 0, 6, 0);
-static SPRD_SC_COMP_CLK_DATA(probe_clk, "probe-clk", aux_parents, 0x24c,
+static SPRD_COMP_CLK_DATA(probe_clk, "probe-clk", aux_parents, 0x24c,
 		    6, 6, 0, 6, 0);
-static SPRD_SC_COMP_CLK_DATA(aux3_clk, "aux3-clk", aux_parents, 0xd20,
+static SPRD_COMP_CLK_DATA(aux3_clk, "aux3-clk", aux_parents, 0xd20,
 		    6, 6, 0, 6, 0);
 
 static struct sprd_clk_common *ums9620_aon_gate[] = {
@@ -1496,8 +1378,8 @@ static struct sprd_clk_common *ums9620_aon_gate[] = {
 	&sdio1_1x_en.common,
 	&sdio2_2x_en.common,
 	&sdio2_1x_en.common,
-	&emmc_1x_en.common,
 	&emmc_2x_en.common,
+	&emmc_1x_en.common,
 	&pll_test_en.common,
 	&cphy_cfg_en.common,
 	&debug_ts_en.common,
@@ -1612,8 +1494,8 @@ static struct clk_hw_onecell_data ums9620_aon_gate_hws = {
 		[CLK_SDIO1_1X_EN]	= &sdio1_1x_en.common.hw,
 		[CLK_SDIO2_2X_EN]	= &sdio2_2x_en.common.hw,
 		[CLK_SDIO2_1X_EN]	= &sdio2_1x_en.common.hw,
-		[CLK_EMMC_1X_EN]	= &emmc_1x_en.common.hw,
 		[CLK_EMMC_2X_EN]	= &emmc_2x_en.common.hw,
+		[CLK_EMMC_1X_EN]	= &emmc_1x_en.common.hw,
 		[CLK_PLL_TEST_EN]	= &pll_test_en.common.hw,
 		[CLK_CPHY_CFG_EN]	= &cphy_cfg_en.common.hw,
 		[CLK_DEBUG_TS_EN]	= &debug_ts_en.common.hw,
@@ -1627,85 +1509,10 @@ static struct clk_hw_onecell_data ums9620_aon_gate_hws = {
 	.num	= CLK_AON_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_aon_apb_resets[] = {
-	[RESET_AON_APB_RC100M_CAL_SOFT_RST]		= { 0x000c, BIT(0), 0x1000 },
-	[RESET_AON_APB_RFTI_SOFT_RST]			= { 0x000c, BIT(1), 0x1000 },
-	[RESET_AON_APB_DCXO_LC_SOFT_RST]		= { 0x000c, BIT(2), 0x1000 },
-	[RESET_AON_APB_BB_CAL_SOFT_RST]			= { 0x000c, BIT(3), 0x1000 },
-	[RESET_AON_APB_MSPI0_SOFT_RST]			= { 0x000c, BIT(4), 0x1000 },
-	[RESET_AON_APB_MSPI1_SOFT_RST]			= { 0x000c, BIT(5), 0x1000 },
-	[RESET_AON_APB_DAP_MTX_SOFT_RST]		= { 0x000c, BIT(6), 0x1000 },
-	[RESET_AON_APB_LVDSDIS_SOFT_RST]		= { 0x000c, BIT(7), 0x1000 },
-	[RESET_AON_APB_SERDES_DPHY_SOFT_RST]		= { 0x000c, BIT(8), 0x1000 },
-	[RESET_AON_APB_SERDES_DPHY_APB_SOFT_RST]	= { 0x000c, BIT(9), 0x1000 },
-	[RESET_AON_APB_BB_SW_RFSPI_MST_SOFT_RST]	= { 0x000c, BIT(10), 0x1000 },
-	[RESET_AON_APB_RC150M_CAL_SOFT_RST]		= { 0x000c, BIT(11), 0x1000 },
-	[RESET_AON_APB_RC60M_CAL_SOFT_RST]		= { 0x000c, BIT(12), 0x1000 },
-	[RESET_AON_APB_RC6M_CAL_SOFT_RST]		= { 0x000C, BIT(13), 0x1000 },
-	[RESET_AON_APB_AON_SW_RFFE_SOFT_RST]		= { 0x000c, BIT(14), 0x1000 },
-	[RESET_AON_APB_LVDS_PHY_SOFT_RST]		= { 0x000c, BIT(15), 0x1000 },
-	[RESET_AON_APB_EFUSE_SOFT_RST]			= { 0x0010, BIT(0), 0x1000 },
-	[RESET_AON_APB_GPIO_SOFT_RST]			= { 0x0010, BIT(1), 0x1000 },
-	[RESET_AON_APB_MBOX_SOFT_RST]			= { 0x0010, BIT(2), 0x1000 },
-	[RESET_AON_APB_KPD_SOFT_RST]			= { 0x0010, BIT(3), 0x1000 },
-	[RESET_AON_APB_AON_SYST_SOFT_RST]		= { 0x0010, BIT(4), 0x1000 },
-	[RESET_AON_APB_AP_SYST_SOFT_RST]		= { 0x0010, BIT(5), 0x1000 },
-	[RESET_AON_APB_DVFS_TOP_SOFT_RST]		= { 0x0010, BIT(7), 0x1000 },
-	[RESET_AON_APB_OTG_UTMI_SOFT_RST]		= { 0x0010, BIT(8), 0x1000 },
-	[RESET_AON_APB_OTG_PHY_SOFT_RST]		= { 0x0010, BIT(9), 0x1000 },
-	[RESET_AON_APB_SPLK_SOFT_RST]			= { 0x0010, BIT(10), 0x1000 },
-	[RESET_AON_APB_PIN_SOFT_RST]			= { 0x0010, BIT(11), 0x1000 },
-	[RESET_AON_APB_ANA_SOFT_RST]			= { 0x0010, BIT(12), 0x1000 },
-	[RESET_AON_APB_CKG_SOFT_RST]			= { 0x0010, BIT(13), 0x1000 },
-	[RESET_AON_APB_UFS_AO_SOFT_RST]			= { 0x0010, BIT(15), 0x1000 },
-	[RESET_AON_APB_APCPU_TS0_SOFT_RST]		= { 0x0010, BIT(17), 0x1000 },
-	[RESET_AON_APB_DEBUG_FILTER_SOFT_RST]		= { 0x0010, BIT(18), 0x1000 },
-	[RESET_AON_APB_AON_IIS_SOFT_RST]		= { 0x0010, BIT(19), 0x1000 },
-	[RESET_AON_APB_SCC_SOFT_RST]			= { 0x0010, BIT(20), 0x1000 },
-	[RESET_AON_APB_SERDES1_SOFT_RST]		= { 0x0010, BIT(21), 0x1000 },
-	[RESET_AON_APB_SERDES0_SOFT_RST]		= { 0x0010, BIT(22), 0x1000 },
-	[RESET_AON_APB_THM0_OVERHEAT_SOFT_RST]		= { 0x0010, BIT(23), 0x1000 },
-	[RESET_AON_APB_THM1_OVERHEAT_SOFT_RST]		= { 0x0010, BIT(24), 0x1000 },
-	[RESET_AON_APB_THM2_OVERHEAT_SOFT_RST]		= { 0x0010, BIT(25), 0x1000 },
-	[RESET_AON_APB_THM3_OVERHEAT_SOFT_RST]		= { 0x0010, BIT(26), 0x1000 },
-	[RESET_AON_APB_THM0_SOFT_RST]			= { 0x0014, BIT(0), 0x1000 },
-	[RESET_AON_APB_THM1_SOFT_RST]			= { 0x0014, BIT(1), 0x1000 },
-	[RESET_AON_APB_THM2_SOFT_RST]			= { 0x0014, BIT(2), 0x1000 },
-	[RESET_AON_APB_THM3_SOFT_RST]			= { 0x0014, BIT(3), 0x1000 },
-	[RESET_AON_APB_PSCP_SIM0_AON_TOP_SOFT_RST]	= { 0x0014, BIT(4), 0x1000 },
-	[RESET_AON_APB_PSCP_SIM1_AON_TOP_SOFT_RST]	= { 0x0014, BIT(5), 0x1000 },
-	[RESET_AON_APB_PSCP_SIM2_AON_TOP_SOFT_RST]	= { 0x0014, BIT(6), 0x1000 },
-	[RESET_AON_APB_LP_AUDCP_INTC_SOFT_RST]		= { 0x0014, BIT(7), 0x1000 },
-	[RESET_AON_APB_PMU_SOFT_RST]			= { 0x0014, BIT(8), 0x1000 },
-	[RESET_AON_APB_ADI_SOFT_RST]			= { 0x0014, BIT(9), 0x1000 },
-	[RESET_AON_APB_EIC_SOFT_RST]			= { 0x0014, BIT(10), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC0_SOFT_RST]		= { 0x0014, BIT(11), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC1_SOFT_RST]		= { 0x0014, BIT(12), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC2_SOFT_RST]		= { 0x0014, BIT(13), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC3_SOFT_RST]		= { 0x0014, BIT(14), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC4_SOFT_RST]		= { 0x0014, BIT(15), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC5_SOFT_RST]		= { 0x0014, BIT(16), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC6_SOFT_RST]		= { 0x0014, BIT(17), 0x1000 },
-	[RESET_AON_APB_LP_AP_INTC7_SOFT_RST]		= { 0x0014, BIT(18), 0x1000 },
-	[RESET_AON_APB_LP_PSCP_INTC_SOFT_RST]		= { 0x0014, BIT(19), 0x1000 },
-	[RESET_AON_APB_LP_PHYCP_INTC_SOFT_RST]		= { 0x0014, BIT(20), 0x1000 },
-	[RESET_AON_APB_LP_ISE_INTC_SOFT_RST]		= { 0x0014, BIT(21), 0x1000 },
-	[RESET_AON_APB_PWM0_SOFT_RST]			= { 0x0014, BIT(25), 0x1000 },
-	[RESET_AON_APB_PWM1_SOFT_RST]			= { 0x0014, BIT(26), 0x1000 },
-	[RESET_AON_APB_PWM2_SOFT_RST]			= { 0x0014, BIT(27), 0x1000 },
-	[RESET_AON_APB_PWM3_SOFT_RST]			= { 0x0014, BIT(28), 0x1000 },
-	[RESET_AON_APB_AP_WDG_SOFT_RST]			= { 0x0014, BIT(29), 0x1000 },
-	[RESET_AON_APB_APCPU_WDG_SOFT_RST]		= { 0x0014, BIT(30), 0x1000 },
-	[RESET_AON_APB_DJTAG_SOFT_RST]			= { 0x0130, BIT(15), 0x1000 },
-	[RESET_AON_APB_UFSDEV_SOFT_RST]			= { 0x0ce8, BIT(0), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_aon_gate_desc = {
 	.clk_clks	= ums9620_aon_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_aon_gate),
 	.hw_clks	= &ums9620_aon_gate_hws,
-	.resets	= ums9620_aon_apb_resets,
-	.num_resets	= ARRAY_SIZE(ums9620_aon_apb_resets),
 };
 
 /* aon apb clks */
@@ -1833,7 +1640,6 @@ static SPRD_MUX_CLK_DATA(debug_ts, "debug-ts", debug_ts_parents, 0x148,
 
 static const struct clk_parent_data pri_sbi_parents[] = {
 	{ .fw_name = "ext-26m" },
-	{ .fw_name = "ext-52m" },
 	{ .hw = &tgpll_96m.hw },
 };
 static SPRD_MUX_CLK_DATA(pri_sbi, "pri-sbi", pri_sbi_parents, 0x154,
@@ -1841,21 +1647,18 @@ static SPRD_MUX_CLK_DATA(pri_sbi, "pri-sbi", pri_sbi_parents, 0x154,
 
 static const struct clk_parent_data xo_sel_parents[] = {
 	{ .fw_name = "ext-26m" },
-	{ .fw_name = "ext-52m" },
 };
 static SPRD_MUX_CLK_DATA(xo_sel, "xo-sel", xo_sel_parents, 0x160,
 		    0, 1, UMS9620_MUX_FLAG);
 
 static const struct clk_parent_data rfti_lth_parents[] ={
 	{ .fw_name = "ext-26m" },
-	{ .fw_name = "ext-52m" },
 };
 static SPRD_MUX_CLK_DATA(rfti_lth, "rfti-lth", rfti_lth_parents, 0x16c,
 		    0, 1, UMS9620_MUX_FLAG);
 
 static const struct clk_parent_data afc_lth_parents[] = {
 	{ .fw_name = "ext-26m" },
-	{ .fw_name = "ext-52m" },
 };
 static SPRD_MUX_CLK_DATA(afc_lth, "afc-lth", afc_lth_parents, 0x178,
 		    0, 1, UMS9620_MUX_FLAG);
@@ -1966,7 +1769,7 @@ static const struct clk_parent_data cssys_parents[] = {
 static SPRD_COMP_CLK_DATA_OFFSET(cssys, "cssys", cssys_parents, 0x25c,
 			    0, 3, 0, 2, 0);
 static SPRD_DIV_CLK_HW(cssys_apb, "cssys-apb", &cssys.common.hw, 0x264,
-		    0, 2, 0);
+		    0, 3, 0);
 
 static const struct clk_parent_data sdio_2x_parents[] = {
 	{ .hw = &clk_1m.hw },
@@ -2010,7 +1813,7 @@ static const struct clk_parent_data analog_io_apb_parents[] = {
 	{ .hw = &tgpll_48m.hw },
 };
 static SPRD_COMP_CLK_DATA_OFFSET(analog_io_apb, "analog-io-apb",
-			    analog_io_apb_parents, 0x2e0, 0, 1, 0, 2, 0);
+			    analog_io_apb_parents, 0x2e0, 0, 1, 8, 2, 0);
 
 static const struct clk_parent_data dmc_ref_parents[] = {
 	{ .hw = &clk_6m5.hw },
@@ -2029,7 +1832,7 @@ static const struct clk_parent_data usb_parents[] = {
 	{ .hw = &tgpll_128m.hw },
 };
 static SPRD_COMP_CLK_DATA_OFFSET(usb, "usb", usb_parents, 0x2f8,
-			    0, 3, 0, 2, 0);
+			    0, 3, 8, 2, 0);
 
 static const struct clk_parent_data usb_suspend_parents[] = {
 	{ .fw_name = "ext-32k" },
@@ -2210,7 +2013,7 @@ static SPRD_COMP_CLK_DATA(core4, "core4", mid_core_parents, 0xe08,
 		     16, 3, 19, 1, 0);
 static SPRD_COMP_CLK_DATA(core5, "core5", mid_core_parents, 0xe08,
 		     20, 3, 23, 1, 0);
-static SPRD_COMP_CLK_DATA(core6, "core6", mid_core_parents, 0xe08,
+static SPRD_COMP_CLK_DATA(core6, "core6", lit_core_parents, 0xe08,
 		     24, 3, 27, 1, 0);
 
 static const struct clk_parent_data big_core_parents[] = {
@@ -2318,6 +2121,70 @@ static struct sprd_clk_desc ums9620_topdvfs_clk_desc = {
 	.hw_clks	= &ums9620_topdvfs_clk_hws,
 };
 
+/* gpu apb gate */
+static SPRD_SC_GATE_CLK_HW(gpu_core_eb, "gpu-core-eb",  &gpu_eb.common.hw, 0x0,
+			0x1000, BIT(0), CLK_IGNORE_UNUSED, 0);
+
+static struct sprd_clk_common *ums9620_gpuapb_gate[] = {
+	/* address base is 0x23000000 */
+	&gpu_core_eb.common,
+};
+
+static struct clk_hw_onecell_data ums9620_gpuapb_gate_hws = {
+	.hws    = {
+		[CLK_GPU_CORE_EB]	= &gpu_core_eb.common.hw,
+	},
+	.num    = CLK_GPU_APB_GATE_NUM,
+};
+
+static struct sprd_clk_desc ums9620_gpuapb_gate_desc = {
+	.clk_clks	= ums9620_gpuapb_gate,
+	.num_clk_clks	= ARRAY_SIZE(ums9620_gpuapb_gate),
+	.hw_clks	= &ums9620_gpuapb_gate_hws,
+};
+
+/* gpu clocks */
+static const struct clk_parent_data gpu_parents[] = {
+	{ .fw_name = "ext-26m" },
+	{ .hw = &tgpll_76m8.hw },
+	{ .hw = &tgpll_153m6.hw },
+	{ .hw = &tgpll_384m.hw },
+	{ .hw = &tgpll_512m.hw },
+	{ .hw = &gpll_680m.hw },
+	{ .hw = &gpll_850m.hw },
+};
+static SPRD_COMP_CLK_DATA_OFFSET(gpu, "gpu", gpu_parents, 0x28,
+			    0, 3, 0, 3, 0);
+
+static const struct clk_parent_data ap_mm_parents[] = {
+	{ .fw_name = "ext-26m" },
+	{ .hw = &tgpll_76m8.hw },
+	{ .hw = &tgpll_153m6.hw },
+};
+static SPRD_MUX_CLK_DATA(ap_mm, "ap-mm", ap_mm_parents, 0x40,
+		    0, 2, UMS9620_MUX_FLAG);
+
+
+static struct sprd_clk_common *ums9620_gpu_clk[] = {
+	/* address base is 0x23010000 */
+	&gpu.common,
+	&ap_mm.common,
+};
+
+static struct clk_hw_onecell_data ums9620_gpu_clk_hws = {
+	.hws	= {
+		[CLK_GPU]		= &gpu.common.hw,
+		[CLK_AP_MM]		= &ap_mm.common.hw,
+	},
+	.num	= CLK_GPU_CLK_NUM,
+};
+
+static struct sprd_clk_desc ums9620_gpu_clk_desc = {
+	.clk_clks	= ums9620_gpu_clk,
+	.num_clk_clks	= ARRAY_SIZE(ums9620_gpu_clk),
+	.hw_clks	= &ums9620_gpu_clk_hws,
+};
+
 /* ipa apb gate clocks */
 /* ipa apb related gate clocks configure CLK_IGNORE_UNUSED because their
  * power domain may be shut down, and they are controlled by related module.
@@ -2353,22 +2220,10 @@ static struct clk_hw_onecell_data ums9620_ipaapb_gate_hws = {
 	.num	= CLK_IPAAPB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ipa_apb_resets[] = {
-	[RESET_IPA_APB_USB_SOFT_RST]			= { 0x0000, BIT(0), 0x1000 },
-	[RESET_IPA_APB_PAM_U3_SOFT_RST]			= { 0x0000, BIT(1), 0x1000 },
-	[RESET_IPA_APB_NIC_400_CFG_SOFT_RST]		= { 0x0000, BIT(2), 0x1000 },
-	[RESET_IPA_APB_PAM_WIFI_SOFT_RST]		= { 0x0000, BIT(3), 0x1000 },
-	[RESET_IPA_APB_BUSMON_PERF_PAM_U3_SOFT_RST]	= { 0x0000, BIT(7), 0x1000 },
-	[RESET_IPA_APB_BUSMON_PERF_UPA_WIFI_SOFT_RST]	= { 0x0000, BIT(8), 0x1000 },
-	[RESET_IPA_APB_BUSMON_PERF_IPA_M0_SOFT_RST]	= { 0x0000, BIT(9), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_ipaapb_gate_desc = {
 	.clk_clks	= ums9620_ipaapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_ipaapb_gate),
 	.hw_clks	= &ums9620_ipaapb_gate_hws,
-	.resets = ums9620_ipa_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ipa_apb_resets),
 };
 
 /* ipa clocks*/
@@ -2483,16 +2338,10 @@ static struct clk_hw_onecell_data ums9620_ipaglb_gate_hws = {
 	.num	= CLK_IPAGLB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ipa_glb_apb_resets[] = {
-	[RESET_IPA_GLB_APB_IPA_SOFT_RST]	= { 0x0000, BIT(0), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_ipaglb_gate_desc = {
 	.clk_clks	= ums9620_ipaglb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_ipaglb_gate),
 	.hw_clks	= &ums9620_ipaglb_gate_hws,
-	.resets = ums9620_ipa_glb_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ipa_glb_apb_resets),
 };
 
 /* ipa dispc1 glb gate clocks */
@@ -2535,21 +2384,10 @@ static struct clk_hw_onecell_data ums9620_ipadispcglb_gate_hws = {
 	.num	= CLK_IPADISPC_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ipa_dispac1_glb_apb_resets[] = {
-	[RESET_IPA_DISPC1_GLB_APB_DPU1_SOFT_RST]	= { 0x0004, BIT(0), 0x1000 },
-	[RESET_IPA_DISPC1_GLB_APB_DPTX_SOFT_RST]	= { 0x0004, BIT(1), 0x1000 },
-	[RESET_IPA_DISPC1_GLB_APB_TRNG_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_IPA_DISPC1_GLB_APB_DPU1_VAU_SOFT_RST]	= { 0x0004, BIT(3), 0x1000 },
-	[RESET_IPA_DISPC1_GLB_APB_PHY_SOFT_RST]		= { 0x0004, BIT(4), 0x1000 },
-	[RESET_IPA_DISPC1_GLB_APB_TCA_SOFT_RST]		= { 0x0004, BIT(5), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_ipadispcglb_gate_desc = {
 	.clk_clks	= ums9620_ipadispcglb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_ipadispcglb_gate),
 	.hw_clks	= &ums9620_ipadispcglb_gate_hws,
-	.resets = ums9620_ipa_dispac1_glb_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ipa_dispac1_glb_apb_resets),
 };
 
 /* pcie apb gate clocks */
@@ -2587,18 +2425,10 @@ static struct clk_hw_onecell_data ums9620_pcieapb_gate_hws = {
 	.num	= CLK_PCIEAPB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_pcie_apb_resets[] = {
-	[RESET_PCIE_APB_PCIE3_SOFT_RST]		= { 0x0000, BIT(5), 0x1000 },
-	[RESET_PCIE_APB_NIC400_CFG_SOFT_RST]	= { 0x0000, BIT(6), 0x1000 },
-	[RESET_PCIE_APB_PCIE_ANLG_SOFT_RST]	= { 0x0000, BIT(7), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_pcieapb_gate_desc = {
 	.clk_clks	= ums9620_pcieapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_pcieapb_gate),
 	.hw_clks	= &ums9620_pcieapb_gate_hws,
-	.resets		= ums9620_pcie_apb_resets,
-	.num_resets	= ARRAY_SIZE(ums9620_pcie_apb_resets),
 };
 
 /* pcie clocks*/
@@ -2685,18 +2515,10 @@ static struct clk_hw_onecell_data ums9620_aiapb_gate_hws = {
 	.num	= CLK_AIAPB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_ai_apb_resets[] = {
-	[RESET_PCIE_APB_DVFS_SOFT_RST]		= { 0x0004, BIT(0), 0x1000 },
-	[RESET_PCIE_APB_OCM_SOFT_RST]		= { 0x0004, BIT(1), 0x1000 },
-	[RESET_PCIE_APB_POWERVR_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_aiapb_gate_desc = {
 	.clk_clks	= ums9620_aiapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_aiapb_gate),
 	.hw_clks	= &ums9620_aiapb_gate_hws,
-	.resets = ums9620_ai_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_ai_apb_resets),
 };
 
 /* ai clocks */
@@ -3004,52 +2826,10 @@ static struct clk_hw_onecell_data ums9620_mm_gate_hws = {
 	.num	= CLK_MM_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_mm_ahb_resets[] = {
-	[RESET_MM_AHB_REGU_SOFT_RST]		= { 0x00c8, BIT(0), 0x1000 },
-	[RESET_MM_AHB_DCAM0_1_SOFT_RST]		= { 0x00c8, BIT(1), 0x1000 },
-	[RESET_MM_AHB_DCAM2_3_SOFT_RST]		= { 0x00c8, BIT(2), 0x1000 },
-	[RESET_MM_AHB_DCAM0_1_AXI_SOFT_RST]	= { 0x00c8, BIT(3), 0x1000 },
-	[RESET_MM_AHB_DCAM3_SOFT_RST]		= { 0x00c8, BIT(4), 0x1000 },
-	[RESET_MM_AHB_DCAM2_SOFT_RST]		= { 0x00c8, BIT(5), 0x1000 },
-	[RESET_MM_AHB_DCAM1_SOFT_RST]		= { 0x00c8, BIT(6), 0x1000 },
-	[RESET_MM_AHB_DCAM0_SOFT_RST]		= { 0x00c8, BIT(7), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI3_SOFT_RST]	= { 0x00c8, BIT(8), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI2_SOFT_RST]	= { 0x00c8, BIT(9), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI1_SOFT_RST]	= { 0x00c8, BIT(10), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI0_SOFT_RST]	= { 0x00c8, BIT(11), 0x1000 },
-	[RESET_MM_AHB_DCAM2_3_AXI_SOFT_RST]	= { 0x00c8, BIT(12), 0x1000 },
-	[RESET_MM_AHB_DCAM2_3_VAU_SOFT_RST]	= { 0x00c8, BIT(13), 0x1000 },
-	[RESET_MM_AHB_DCAM0_1_VAU_SOFT_RST]	= { 0x00c8, BIT(14), 0x1000 },
-	[RESET_MM_AHB_DEP_VAU_SOFT_RST]		= { 0x00cc, BIT(0), 0x1000 },
-	[RESET_MM_AHB_DEP_SOFT_RST]		= { 0x00cc, BIT(1), 0x1000 },
-	[RESET_MM_AHB_DEP_ALL_SOFT_RST]		= { 0x00cc, BIT(2), 0x1000 },
-	[RESET_MM_AHB_FD_VAU_SOFT_RST]		= { 0x00cc, BIT(3), 0x1000 },
-	[RESET_MM_AHB_FD_SOFT_RST]		= { 0x00cc, BIT(4), 0x1000 },
-	[RESET_MM_AHB_FD_ALL_SOFT_RST]		= { 0x00cc, BIT(5), 0x1000 },
-	[RESET_MM_AHB_CPP_DMA_SOFT_RST]		= { 0x00cc, BIT(6), 0x1000 },
-	[RESET_MM_AHB_CPP_PATH1_SOFT_RST]	= { 0x00cc, BIT(7), 0x1000 },
-	[RESET_MM_AHB_CPP_PATH0_SOFT_RST]	= { 0x00cc, BIT(8), 0x1000 },
-	[RESET_MM_AHB_CPP_VAU_SOFT_RST]		= { 0x00cc, BIT(9), 0x1000 },
-	[RESET_MM_AHB_CPP_SOFT_RST]		= { 0x00cc, BIT(10), 0x1000 },
-	[RESET_MM_AHB_CPP_ALL_SOFT_RST]		= { 0x00cc, BIT(11), 0x1000 },
-	[RESET_MM_AHB_ISP_VAU_SOFT_RST]		= { 0x00cc, BIT(12), 0x1000 },
-	[RESET_MM_AHB_ISP_ALL_SOFT_RST]		= { 0x00cc, BIT(13), 0x1000 },
-	[RESET_MM_AHB_ISP_SOFT_RST]		= { 0x00cc, BIT(14), 0x1000 },
-	[RESET_MM_AHB_CKG_SOFT_RST]		= { 0x00d0, BIT(0), 0x1000 },
-	[RESET_MM_AHB_DVFS_SOFT_RST]		= { 0x00d0, BIT(1), 0x1000 },
-	[RESET_MM_AHB_SYS_H2P_DB_SOFT_RST]	= { 0x00d0, BIT(2), 0x1000 },
-	[RESET_MM_AHB_JPG_SOFT_RST]		= { 0x00d0, BIT(3), 0x1000 },
-	[RESET_MM_AHB_JPG_VAU_SOFT_RST]		= { 0x00d0, BIT(4), 0x1000 },
-	[RESET_MM_AHB_MAILBOX_SOFT_RST]		= { 0x00d0, BIT(5), 0x1000 },
-	[RESET_MM_AHB_UART_SOFT_RST]		= { 0x00d0, BIT(6), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_mm_gate_desc = {
 	.clk_clks	= ums9620_mm_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_mm_gate),
 	.hw_clks	= &ums9620_mm_gate_hws,
-	.resets	= ums9620_mm_ahb_resets,
-	.num_resets	= ARRAY_SIZE(ums9620_mm_ahb_resets),
 };
 
 /* mm clocks */
@@ -3091,10 +2871,9 @@ static const struct clk_parent_data vdsp_blk_cfg_parents[] = {
 	{ .hw = &tgpll_48m.hw },
 	{ .hw = &tgpll_64m.hw },
 	{ .hw = &tgpll_96m.hw },
-	{ .hw = &tgpll_128m.hw },
 };
 static SPRD_MUX_CLK_DATA(vdsp_blk_cfg, "vdsp-blk-cfg", vdsp_blk_cfg_parents,
-		    0x64, 0, 3, UMS9620_MUX_FLAG);
+		    0x64, 0, 2, UMS9620_MUX_FLAG);
 
 static const struct clk_parent_data mm_uart_parents[] = {
 	{ .fw_name = "ext-26m" },
@@ -3140,10 +2919,9 @@ static const struct clk_parent_data fd_parents[] = {
 	{ .hw = &tgpll_192m.hw },
 	{ .hw = &tgpll_256m.hw },
 	{ .hw = &tgpll_307m2.hw },
-	{ .hw = &tgpll_384m.hw },
 };
 static SPRD_MUX_CLK_DATA(fd, "fd", fd_parents, 0xac,
-		    0, 3, UMS9620_MUX_FLAG);
+		    0, 2, UMS9620_MUX_FLAG);
 
 static const struct clk_parent_data dcam0_1_parents[] = {
 	{ .hw = &tgpll_153m6.hw },
@@ -3248,10 +3026,9 @@ static const struct clk_parent_data mm_mtx_data_parents[] = {
 	{ .hw = &tgpll_256m.hw },
 	{ .hw = &tgpll_307m2.hw },
 	{ .hw = &v4nrpll_409m6.hw },
-	{ .hw = &tgpll_512m.hw },
 };
 static SPRD_MUX_CLK_DATA(mm_mtx_data, "mm-mtx-data", mm_mtx_data_parents,
-		    0x16c, 0, 3, UMS9620_MUX_FLAG);
+		    0x16c, 0, 2, UMS9620_MUX_FLAG);
 
 static const struct clk_parent_data jpg_parents[] = {
 	{ .hw = &tgpll_153m6.hw },
@@ -3383,7 +3160,7 @@ static SPRD_SC_GATE_CLK_HW(vpu_dec_eb, "dpu-dec-eb", &dpu_vsp_eb.common.hw, 0x0,
 static SPRD_SC_GATE_CLK_HW(gsp0_eb, "gsp0-eb", &dpu_vsp_eb.common.hw, 0x0,
 			0x1000, BIT(6), CLK_IGNORE_UNUSED, 0);
 static SPRD_SC_GATE_CLK_HW(gsp1_eb, "gsp1-eb", &dpu_vsp_eb.common.hw, 0x0,
-			0x1000, BIT(7), CLK_IGNORE_UNUSED, 0);
+			0x1000, BIT(8), CLK_IGNORE_UNUSED, 0);
 static SPRD_SC_GATE_CLK_HW(dpu_dvfs_eb, "dpu-dvfs-eb", &dpu_vsp_eb.common.hw, 0x0,
 			0x1000, BIT(8), CLK_IGNORE_UNUSED, 0);
 static SPRD_SC_GATE_CLK_HW(dpu_ckg_eb, "dpu-ckg-eb", &dpu_vsp_eb.common.hw, 0x0,
@@ -3431,42 +3208,10 @@ static struct clk_hw_onecell_data ums9620_dpu_vsp_gate_hws = {
 	.num    = CLK_DPU_VSP_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_dpu_vsp_resets[] = {
-	[RESET_DPU_VSP_APB_DPU_SOFT_RST]		= { 0x0004, BIT(0), 0x1000 },
-	[RESET_DPU_VSP_APB_DSI0_SOFT_RST]		= { 0x0004, BIT(1), 0x1000 },
-	[RESET_DPU_VSP_APB_DSI1_SOFT_RST]		= { 0x0004, BIT(2), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC0_SOFT_RST]		= { 0x0004, BIT(3), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC1_SOFT_RST]		= { 0x0004, BIT(4), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_DEC_SOFT_RST]		= { 0x0004, BIT(5), 0x1000 },
-	[RESET_DPU_VSP_APB_GSP0_SOFT_RST]		= { 0x0004, BIT(6), 0x1000 },
-	[RESET_DPU_VSP_APB_GSP1_SOFT_RST]		= { 0x0004, BIT(7), 0x1000 },
-	[RESET_DPU_VSP_APB_DVFS_SOFT_RST]		= { 0x0004, BIT(8), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC0_VPP_SOFT_RST]	= { 0x0004, BIT(9), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC0_VSP_SOFT_RST]	= { 0x0004, BIT(10), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC1_VPP_SOFT_RST]	= { 0x0004, BIT(11), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC1_VSP_SOFT_RST]	= { 0x0004, BIT(12), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_DEC_VPP_SOFT_RST]	= { 0x0004, BIT(13), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_DEC_VSP_SOFT_RST]	= { 0x0004, BIT(14), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC0_VAU_SOFT_RST]	= { 0x0004, BIT(15), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_ENC1_VAU_SOFT_RST]	= { 0x0004, BIT(16), 0x1000 },
-	[RESET_DPU_VSP_APB_VPU_DEC_VAU_SOFT_RST]	= { 0x0004, BIT(17), 0x1000 },
-	[RESET_DPU_VSP_APB_DPU_VAU_SOFT_RST]		= { 0x0004, BIT(18), 0x1000 },
-	[RESET_DPU_VSP_APB_GSP0_VAU_SOFT_RST]		= { 0x0004, BIT(19), 0x1000 },
-	[RESET_DPU_VSP_APB_GSP1_VAU_SOFT_RST]		= { 0x0004, BIT(20), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_DISP]	= { 0x00A0, BIT(0), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_VPU_ENC0]	= { 0x00A0, BIT(1), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_VPU_ENC1]	= { 0x00A0, BIT(2), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_VPU_DEC]	= { 0x00A0, BIT(3), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_GSP0]	= { 0x00A0, BIT(4), 0x1000 },
-	[RESET_DPU_VSP_APB_SYS_SOFT_RST_REQ_GSP1]	= { 0x00A0, BIT(5), 0x1000 },
-};
-
 static struct sprd_clk_desc ums9620_dpu_vsp_gate_desc = {
 	.clk_clks	= ums9620_dpu_vsp_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_dpu_vsp_gate),
 	.hw_clks	= &ums9620_dpu_vsp_gate_hws,
-	.resets     = ums9620_dpu_vsp_resets,
-	.num_resets = ARRAY_SIZE(ums9620_dpu_vsp_resets),
 };
 
 /* dpu vsp clocks */
@@ -3684,30 +3429,10 @@ static struct clk_hw_onecell_data ums9620_audcpglb_gate_hws = {
 	.num	= CLK_AUDCP_GLB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_audcp_glb_resets[] = {
-	[RESET_AUDCP_GLB_VBS_24M_SOFT_RST]	= { 0x0008, BIT(0), 0x1000 },
-	[RESET_AUDCP_GLB_DMA_AP_SOFT_RST]	= { 0x0008, BIT(1), 0x1000 },
-	[RESET_AUDCP_GLB_SRC48K_SOFT_RST]	= { 0x0008, BIT(5), 0x1000 },
-	[RESET_AUDCP_GLB_MCDT_SOFT_RST]		= { 0x0008, BIT(7), 0x1000 },
-	[RESET_AUDCP_GLB_VBC_SOFT_RST]		= { 0x0008, BIT(9), 0x1000 },
-	[RESET_AUDCP_GLB_SPINLOCK_SOFT_RST]	= { 0x0008, BIT(10), 0x1000 },
-	[RESET_AUDCP_GLB_DMA_CP_SOFT_RST]	= { 0x0008, BIT(11), 0x1000 },
-	[RESET_AUDCP_GLB_IIS0_SOFT_RST]		= { 0x0008, BIT(12), 0x1000 },
-	[RESET_AUDCP_GLB_IIS1_SOFT_RST]		= { 0x0008, BIT(13), 0x1000 },
-	[RESET_AUDCP_GLB_IIS2_SOFT_RST]		= { 0x0008, BIT(14), 0x1000 },
-	[RESET_AUDCP_GLB_UART_SOFT_RST]		= { 0x0008, BIT(16), 0x1000 },
-	[RESET_AUDCP_GLB_AUD_SOFT_RST]		= { 0x0008, BIT(25), 0x1000 },
-	[RESET_AUDCP_GLB_TDM_SOFT_RST]		= { 0x0008, BIT(27), 0x1000 },
-	[RESET_AUDCP_GLB_MATRIX_CFG_SOFT_RST]	= { 0x0008, BIT(28), 0x1000 },
-	[RESET_AUDCP_GLB_TDM_HF_SOFT_RST]	= { 0x0008, BIT(29), 0x1000 },
-};
-
 static const struct sprd_clk_desc ums9620_audcpglb_gate_desc = {
 	.clk_clks	= ums9620_audcpglb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_audcpglb_gate),
 	.hw_clks	= &ums9620_audcpglb_gate_hws,
-	.resets     = ums9620_audcp_glb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_audcp_glb_resets),
 };
 
 /* audcp aon apb gates */
@@ -3750,19 +3475,10 @@ static struct clk_hw_onecell_data ums9620_audcpapb_gate_hws = {
 	.num	= CLK_AUDCP_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums9620_audcp_aon_apb_resets[] = {
-	[RESET_AUDCP_AON_APB_VAD_SOFT_RST]	= { 0x0008, BIT(0), 0x1000 },
-	[RESET_AUDCP_AON_APB_PDM_SOFT_RST]	= { 0x0008, BIT(1), 0x1000 },
-	[RESET_AUDCP_AON_APB_PDM_IIS_SOFT_RST]	= { 0x0008, BIT(2), 0x1000 },
-	[RESET_AUDCP_AON_APB_DVFS_SOFT_RST]	= { 0x0008, BIT(3), 0x1000 },
-};
-
 static const struct sprd_clk_desc ums9620_audcpapb_gate_desc = {
 	.clk_clks	= ums9620_audcpapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums9620_audcpapb_gate),
 	.hw_clks	= &ums9620_audcpapb_gate_hws,
-	.resets		= ums9620_audcp_aon_apb_resets,
-	.num_resets = ARRAY_SIZE(ums9620_audcp_aon_apb_resets),
 };
 
 static const struct of_device_id sprd_ums9620_clk_ids[] = {
@@ -3794,6 +3510,10 @@ static const struct of_device_id sprd_ums9620_clk_ids[] = {
 	  .data = &ums9620_aonapb_clk_desc },
 	{ .compatible = "sprd,ums9620-topdvfs-clk",	/* 0x64940000 */
 	  .data = &ums9620_topdvfs_clk_desc },
+	{ .compatible = "sprd,ums9620-gpuapb-gate",	/* 0x23000000 */
+	  .data = &ums9620_gpuapb_gate_desc },
+	{ .compatible = "sprd,ums9620-gpu-clk",		/* 0x23010000 */
+	  .data = &ums9620_gpu_clk_desc },
 	{ .compatible = "sprd,ums9620-ipaapb-gate",	/* 0x25000000 */
 	  .data = &ums9620_ipaapb_gate_desc },
 	{ .compatible = "sprd,ums9620-ipa-clk",		/* 0x25010000 */
@@ -3831,30 +3551,12 @@ MODULE_DEVICE_TABLE(of, sprd_ums9620_clk_ids);
 static int ums9620_clk_probe(struct platform_device *pdev)
 {
 	const struct sprd_clk_desc *desc;
-	struct sprd_reset *reset;
-	int ret;
 
 	desc = device_get_match_data(&pdev->dev);
 	if (!desc)
 		return -ENODEV;
 
 	sprd_clk_regmap_init(pdev, desc);
-
-	if (desc->num_resets > 0) {
-		reset = devm_kzalloc(&pdev->dev, sizeof(*reset), GFP_KERNEL);
-		if (!reset)
-			return -ENOMEM;
-
-		reset->rcdev.of_node = pdev->dev.of_node;
-		reset->rcdev.ops = &sprd_sc_reset_ops;
-		reset->rcdev.nr_resets = desc->num_resets;
-		reset->reset_map = desc->resets;
-		reset->regmap = platform_get_drvdata(pdev);
-
-		ret = devm_reset_controller_register(&pdev->dev, &reset->rcdev);
-		if (ret)
-			dev_err(&pdev->dev, "Failed to register reset controller\n");
-	}
 
 	return sprd_clk_probe(&pdev->dev, desc->hw_clks);
 }

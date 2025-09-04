@@ -57,20 +57,8 @@
 
 #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
 #include <linux/stackprotector.h>
-unsigned long __stack_chk_guard __ro_after_init;
+unsigned long __stack_chk_guard __read_mostly;
 EXPORT_SYMBOL(__stack_chk_guard);
-#endif
-
-#ifdef CONFIG_SHOW_UREGS_WITH_PHYSICAL
-#define USER_END		  0x7fffffffffUL
-#define USER_POINTER_TAG		  0xB4UL
-#define USER_POINTER_TAG_SHIFT		    56
-#define USER_POINTER_TAG_ADDRESS_MASK   ((UL(1) << USER_POINTER_TAG_SHIFT) - 1)
-
-#define sprd_uvirt_addr_valid(uaddr) ((uaddr >> PAGE_SHIFT) > 0 && \
-		((uaddr <= USER_END) || \
-		 (((uaddr >> USER_POINTER_TAG_SHIFT) == USER_POINTER_TAG) && \
-		  ((uaddr & USER_POINTER_TAG_ADDRESS_MASK) <= USER_END))))
 #endif
 
 /*
@@ -259,7 +247,6 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 	int	nlines;
 	u32	*p;
 	struct vm_struct *vaddr;
-	unsigned long end;
 
 	/*
 	 * don't attempt to dump non-kernel addresses or
@@ -270,13 +257,6 @@ static void show_data(unsigned long addr, int nbytes, const char *name)
 
 	if (addr > VMALLOC_START && addr < VMALLOC_END) {
 		vaddr = find_vm_area_no_wait((const void *)addr);
-		if (!vaddr || ((vaddr->flags & VM_IOREMAP) == VM_IOREMAP))
-			return;
-	}
-
-	end = addr + nbytes - 1;
-	if (end > VMALLOC_START && end < VMALLOC_END) {
-		vaddr = find_vm_area_no_wait((const void *)end);
 		if (!vaddr || ((vaddr->flags & VM_IOREMAP) == VM_IOREMAP))
 			return;
 	}
@@ -383,103 +363,6 @@ void show_regs(struct pt_regs * regs)
 	__show_regs(regs);
 	dump_backtrace(regs, NULL);
 }
-
-#ifdef CONFIG_SHOW_UREGS_WITH_PHYSICAL
-u64 vtop_for_uregs_show(u64 reg_addr)
-{
-	pgd_t *pgd;
-	pud_t *pud;
-	pmd_t *pmd;
-	pte_t *pte;
-
-	u64 phys_addr = 0;
-	u64 virt_addr;
-	u64 page_addr;
-	u64 page_offset;
-
-	if (!sprd_uvirt_addr_valid(reg_addr)) {
-		return 0 ;
-	}
-
-	virt_addr = reg_addr & USER_POINTER_TAG_ADDRESS_MASK;
-
-	if (!find_vma(current->mm, virt_addr)) {
-		return 0 ;
-	}
-
-	pgd = pgd_offset(current->mm, virt_addr);
-	if (pgd_none(*pgd)) {
-		return 0 ;
-	}
-
-	pud = pud_offset(pgd, virt_addr);
-	if (pud_none(*pud)) {
-		return 0 ;
-	}
-
-	pmd = pmd_offset(pud, virt_addr);
-	if (pmd_none(*pmd)) {
-		return 0 ;
-	}
-
-	if (pmd_val(*pmd) && !(pmd_val(*pmd) & (_AT(pmdval_t, 1) << 1))) {
-		page_addr = page_to_phys(pmd_page(*pmd));
-		page_offset = virt_addr & ~PAGE_MASK;
-		phys_addr = (0x7fffffffffUL) & (page_addr | page_offset);
-		return phys_addr;
-	}
-
-	pte = pte_offset_kernel(pmd, virt_addr);
-	if (pte_none(*pte) && !pte_val(*pte)) {
-		return 0 ;
-	}
-
-	page_addr = pte_val(*pte) & PAGE_MASK;
-	page_offset = virt_addr & ~PAGE_MASK;
-	phys_addr = (0x7fffffffffUL) & (page_addr | page_offset);
-
-	return phys_addr;
-}
-
-void __show_uregs_with_physical(struct pt_regs *regs)
-{
-	int i, top_reg;
-	u64 lr, sp;
-
-	if (compat_user_mode(regs)) {
-		lr = regs->compat_lr;
-		sp = regs->compat_sp;
-		top_reg = 12;
-	} else {
-		lr = regs->regs[30];
-		sp = regs->sp;
-		top_reg = 29;
-	}
-
-	pr_warn("Before coredump,show user regs with physical address \n");
-	show_regs_print_info(KERN_DEFAULT);
-
-	pr_warn("pc : %016llx phys_addr :  %016llx  \n",
-		  regs->pc, vtop_for_uregs_show(regs->pc));
-	pr_warn("lr : %016llx phys_addr :  %016llx  \n",
-		  lr, vtop_for_uregs_show(lr));
-	pr_warn("sp : %016llx phys_addr :  %016llx  \n",
-	  sp, vtop_for_uregs_show(sp));
-
-	i = top_reg;
-
-	while (i >= 0) {
-		pr_warn("x%-2d: %016llx phys_addr :  %016llx  \n",
-		  i, regs->regs[i], vtop_for_uregs_show(regs->regs[i]));
-		i--;
-	}
-}
-
-void show_uregs_with_physical(struct pt_regs *regs)
-{
-	__show_uregs_with_physical(regs);
-}
-#endif
 
 static void tls_thread_flush(void)
 {
@@ -687,26 +570,34 @@ static void entry_task_switch(struct task_struct *next)
 
 /*
  * ARM erratum 1418040 handling, affecting the 32bit view of CNTVCT.
- * Ensure access is disabled when switching to a 32bit task, ensure
- * access is enabled when switching to a 64bit task.
+ * Assuming the virtual counter is enabled at the beginning of times:
+ *
+ * - disable access when switching from a 64bit task to a 32bit task
+ * - enable access when switching from a 32bit task to a 64bit task
  */
-static void erratum_1418040_thread_switch(struct task_struct *next)
+static void erratum_1418040_thread_switch(struct task_struct *prev,
+					  struct task_struct *next)
 {
-	if (!IS_ENABLED(CONFIG_ARM64_ERRATUM_1418040) ||
-	    !this_cpu_has_cap(ARM64_WORKAROUND_1418040))
+	bool prev32, next32;
+	u64 val;
+
+	if (!IS_ENABLED(CONFIG_ARM64_ERRATUM_1418040))
 		return;
 
-	if (is_compat_thread(task_thread_info(next)))
-		sysreg_clear_set(cntkctl_el1, ARCH_TIMER_USR_VCT_ACCESS_EN, 0);
-	else
-		sysreg_clear_set(cntkctl_el1, 0, ARCH_TIMER_USR_VCT_ACCESS_EN);
-}
+	prev32 = is_compat_thread(task_thread_info(prev));
+	next32 = is_compat_thread(task_thread_info(next));
 
-static void erratum_1418040_new_exec(void)
-{
-	preempt_disable();
-	erratum_1418040_thread_switch(current);
-	preempt_enable();
+	if (prev32 == next32 || !this_cpu_has_cap(ARM64_WORKAROUND_1418040))
+		return;
+
+	val = read_sysreg(cntkctl_el1);
+
+	if (!next32)
+		val |= ARCH_TIMER_USR_VCT_ACCESS_EN;
+	else
+		val &= ~ARCH_TIMER_USR_VCT_ACCESS_EN;
+
+	write_sysreg(val, cntkctl_el1);
 }
 
 #if defined(CONFIG_SPRD_DEBUG)
@@ -732,7 +623,7 @@ __notrace_funcgraph struct task_struct *__switch_to(struct task_struct *prev,
 #endif
 	ptrauth_thread_switch(next);
 	ssbs_thread_switch(next);
-	erratum_1418040_thread_switch(next);
+	erratum_1418040_thread_switch(prev, next);
 	scs_overflow_check(next);
 
 	/*
@@ -792,7 +683,6 @@ void arch_setup_new_exec(void)
 	current->mm->context.flags = is_compat_task() ? MMCF_AARCH32 : 0;
 
 	ptrauth_thread_init_user(current);
-	erratum_1418040_new_exec();
 }
 
 #ifdef CONFIG_ARM64_TAGGED_ADDR_ABI

@@ -12,8 +12,6 @@
 #include <linux/device.h>
 #include <linux/types.h>
 
-#include <drm/drm_crtc.h>
-
 typedef enum {
 	DVFS_WORK = 0,
 	DVFS_IDLE,
@@ -54,13 +52,11 @@ struct ip_dvfs_status {
 	char *gsp0_vote_volt;
 	char *gsp1_vote_volt;
 	char *vsp_vote_volt;
-	char *vpuenc_vote_volt;
 	char *vdsp_vote_volt;
 	char *dpu_cur_freq;
 	char *gsp0_cur_freq;
 	char *gsp1_cur_freq;
 	char *vsp_cur_freq;
-	char *vpuenc_cur_freq;
 	char *vdsp_cur_freq;
 	u32 vdsp_edap_div;
 	u32 vdsp_m0_div;
@@ -69,13 +65,13 @@ struct ip_dvfs_status {
 struct apsys_dev {
 	struct device dev;
 	unsigned long base;
+	const char *version;
 
 	struct apsys_dvfs_coffe dvfs_coffe;
 	const struct apsys_dvfs_ops *dvfs_ops;
 
 	unsigned long apsys_base;
 	unsigned long top_base;
-	struct regmap *aon_base;
 	struct mutex reg_lock;
 };
 
@@ -95,19 +91,10 @@ struct apsys_dvfs_ops {
 };
 
 struct sprd_apsys_dvfs_ops {
-	const struct apsys_dvfs_ops *apsys_ops;
-	const char *version;
-};
-
-struct sprd_dpu_crtc {
-	struct device dev;
-	struct mutex dpu_gsp_lock;
-	struct drm_crtc *crtc;
+	 const struct apsys_dvfs_ops *apsys_ops;
 };
 
 struct apsys_dev *find_apsys_device_by_name(char *name);
-int n6pro_soc_ver_id_check(void);
-bool get_display_power_status(void);
 
 #ifdef CONFIG_DRM_SPRD_GSP_DVFS
 extern struct platform_driver gsp_dvfs_driver;
@@ -122,8 +109,6 @@ extern struct devfreq_governor gsp_devfreq_gov;
 extern struct devfreq_governor vsp_devfreq_gov;
 extern struct devfreq_governor dpu_devfreq_gov;
 extern struct devfreq_governor vdsp_devfreq_gov;
-
-extern struct regmap *regmap_aon_base;
 
 extern const struct apsys_dvfs_ops sharkl5pro_apsys_dvfs_ops;
 extern const struct apsys_dvfs_ops sharkl5_apsys_dvfs_ops;

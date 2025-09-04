@@ -88,81 +88,8 @@ struct sprd_sip_svc_dbg_ops {
  */
 struct sprd_sip_svc_pwr_ops {
 	struct sprd_sip_svc_rev_info rev;
+
 	int (*get_wakeup_source)(u32 *major, u32 *second, u32 *thrid);
-	u64 (*get_pdbg_info)(u32 scene, u32 phase, u64 *r0, u64 *r1, u64 *r2, u64 *r3);
-};
-
-/**
- * struct sprd_sip_svc_dvfs_ops - represents the various operations
- *      provided by SPRD SIP DVFS
- *
- * @dvfs_enable: enable cluster dvfs
- * @table_update: update dvfs table for cluster
- *
- * @step_set: set the cluster dcdc update step
- * @margin_set: set the cluster dcdc update margin
- *
- * @freq_set: set cluster frequency
- * @freq_get: get cluster current frequency
- * @pair_get: get freq and volt of index
- *
- * @pmic_set: set the dcdc_cpu uses pmic type
- * @bin_set: set cluster bin info
- * @version_set: set SOC version info
- * @dvfs_init: apcpu hwdvfs logic init entry
- */
-struct sprd_sip_svc_dvfs_ops {
-	struct sprd_sip_svc_rev_info rev;
-
-	int (*dvfs_enable)(u32 cluster);
-	int (*table_update)(u32 cluster, u32 temp, u32 *num);
-	int (*step_set)(u32 cluster, u32 step);
-	int (*margin_set)(u32 cluster, u32 margin);
-	int (*freq_set)(u32 cluster, u32 index);
-	int (*freq_get)(u32 cluster, u64 *freq);
-	int (*pair_get)(u32 cluster, u32 index, u64 *freq, u64 *vol);
-	int (*pmic_set)(u32 cluster, u32 num);
-	int (*bin_set)(u32 cluster, u32 bin);
-	int (*version_set)(u32 cluster, u64 *ver);
-	int (*dvfs_init)(u32 flag);
-	int (*dvfs_debug_init)(void);
-};
-
-/**
- * struct sprd_sip_svc_npu_ops - represents the various operations
- *      provided by SPRD SIP NPU
- *
- * @set_freq: set npu frequency
- * @disable_idle: disable npu idle and sw dvfs
- * @get_max_state: get the number of freq npu supported
- * @get_opp: get npu opp
- * @set_volts: set npu top volts
- *
- */
-struct sprd_sip_svc_npu_ops {
-	struct sprd_sip_svc_rev_info rev;
-
-	int (*set_freq)(u32 freq);
-	int (*disable_idle)(void);
-	int (*get_max_state)(u32 *max_state);
-	int (*get_opp)(u32 index, u32 *freq, u32 *volt);
-	int (*set_volts)(u32 high_temp);
-};
-
-/**
- * struct sprd_sip_svc_storage_ops - represents the various operations
- * 	provided by SPRD SIP STORAGE
- *
- * @ufs_crypto_enable: make crypto cfg field configurable to normal world
- * @ufs_crypto_disable: make crypto cfg field non-configurable to normal world
- */
-struct sprd_sip_svc_storage_ops {
-	struct sprd_sip_svc_rev_info rev;
-
-#if IS_ENABLED(CONFIG_SCSI_UFS_CRYPTO)
-	int (*ufs_crypto_enable)(void);
-	int (*ufs_crypto_disable)(void);
-#endif
 };
 
 /**
@@ -170,15 +97,11 @@ struct sprd_sip_svc_storage_ops {
  *
  * @perf_ops: pointer to set of performance operations
  * @dbg_ops: pointer to set of dbg operations
- * @storage_ops: pointer to set of storage operations
  */
 struct sprd_sip_svc_handle {
 	struct sprd_sip_svc_perf_ops perf_ops;
 	struct sprd_sip_svc_dbg_ops dbg_ops;
 	struct sprd_sip_svc_pwr_ops pwr_ops;
-	struct sprd_sip_svc_dvfs_ops dvfs_ops;
-	struct sprd_sip_svc_npu_ops npu_ops;
-	struct sprd_sip_svc_storage_ops storage_ops;
 };
 
 /**

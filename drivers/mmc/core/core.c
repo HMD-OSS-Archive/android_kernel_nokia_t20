@@ -1399,7 +1399,7 @@ void mmc_power_off(struct mmc_host *host)
 	 * XO-1.5, require a short delay after poweroff before the card
 	 * can be successfully turned on again.
 	 */
-	mmc_delay(10);
+	mmc_delay(1);
 }
 
 void mmc_power_cycle(struct mmc_host *host, u32 ocr)
@@ -2380,7 +2380,7 @@ void mmc_start_host(struct mmc_host *host)
 	_mmc_detect_change(host, 0, false);
 }
 
-void __mmc_stop_host(struct mmc_host *host)
+void mmc_stop_host(struct mmc_host *host)
 {
 	if (host->slot.cd_irq >= 0) {
 		mmc_gpio_set_cd_wake(host, false);
@@ -2389,11 +2389,6 @@ void __mmc_stop_host(struct mmc_host *host)
 
 	host->rescan_disable = 1;
 	cancel_delayed_work_sync(&host->detect);
-}
-
-void mmc_stop_host(struct mmc_host *host)
-{
-	__mmc_stop_host(host);
 
 	/* clear pm flags now and let card drivers set them as needed */
 	host->pm_flags = 0;

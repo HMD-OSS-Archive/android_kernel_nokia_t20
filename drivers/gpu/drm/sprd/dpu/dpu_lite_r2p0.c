@@ -3,7 +3,6 @@
  * Copyright (C) 2020 Unisoc Inc.
  */
 
-#include <drm/drm_vblank.h>
 #include <linux/delay.h>
 #include <linux/dma-buf.h>
 #include <linux/module.h>
@@ -215,6 +214,18 @@ struct wb_region {
 	u16 size_h;
 };
 
+struct dpu_cfg1 {
+	u8 arqos_low;
+	u8 arqos_high;
+	u8 awqos_low;
+	u8 awqos_high;
+};
+
+struct scale_cfg {
+	u32 in_w;
+	u32 in_h;
+};
+
 struct epf_cfg {
 	u16 epsilon0;
 	u16 epsilon1;
@@ -270,13 +281,23 @@ struct slp_cfg {
 };
 
 struct dpu_enhance {
+	bool need_scale;
+	bool mode_changed;
 	u32 enhance_en;
 
+	struct scale_cfg scale_copy;
 	struct slp_cfg slp_copy;
 	struct epf_cfg epf_copy;
 	struct cm_cfg cm_copy;
 	struct hsv_lut hsv_copy;
 	struct gamma_lut gamma_copy;
+};
+
+static struct dpu_cfg1 qos_cfg = {
+	.arqos_low = 0x1,
+	.arqos_high = 0x7,
+	.awqos_low = 0x1,
+	.awqos_high = 0x7,
 };
 
 static struct wb_region region[3];
@@ -301,6 +322,39 @@ static bool dpu_check_raw_int(struct dpu_context *ctx, u32 mask)
 
 	pr_err("dpu_int_raw:0x%x\n", reg_val);
 	return false;
+}
+
+static int dpu_parse_dt(struct dpu_context *ctx,
+				struct device_node *np)
+{
+	int ret;
+	struct device_node *qos_np;
+
+	qos_np = of_parse_phandle(np, "sprd,qos", 0);
+	if (!qos_np)
+		pr_warn("can't find dpu qos cfg node\n");
+
+	ret = of_property_read_u8(qos_np, "arqos-low",
+					&qos_cfg.arqos_low);
+	if (ret)
+		pr_warn("read arqos-low failed, use default\n");
+
+	ret = of_property_read_u8(qos_np, "arqos-high",
+					&qos_cfg.arqos_high);
+	if (ret)
+		pr_warn("read arqos-high failed, use default\n");
+
+	ret = of_property_read_u8(qos_np, "awqos-low",
+					&qos_cfg.awqos_low);
+	if (ret)
+		pr_warn("read awqos_low failed, use default\n");
+
+	ret = of_property_read_u8(qos_np, "awqos-high",
+					&qos_cfg.awqos_high);
+	if (ret)
+		pr_warn("read awqos-high failed, use default\n");
+
+	return 0;
 }
 
 static void dpu_dump(struct dpu_context *ctx)
@@ -347,8 +401,6 @@ static u32 check_mmu_isr(struct dpu_context *ctx, u32 reg_val)
 
 static u32 dpu_isr(struct dpu_context *ctx)
 {
-	struct sprd_dpu *dpu =
-		(struct sprd_dpu *)container_of(ctx, struct sprd_dpu, ctx);
 	u32 reg_val, int_mask = 0;
 
 	reg_val = DPU_REG_RD(ctx->base + REG_DPU_INT_STS);
@@ -365,8 +417,6 @@ static u32 dpu_isr(struct dpu_context *ctx)
 
 	/* dpu vsync isr */
 	if (reg_val & BIT_DPU_INT_VSYNC) {
-		drm_crtc_handle_vblank(&dpu->crtc->base);
-
 		/* write back feature */
 		if ((ctx->vsync_count == ctx->max_vsync_count) && ctx->wb_en)
 			schedule_work(&ctx->wb_work);
@@ -644,10 +694,10 @@ static int dpu_init(struct dpu_context *ctx)
 	DPU_REG_WR(ctx->base + REG_BLEND_SIZE, size);
 
 	DPU_REG_WR(ctx->base + REG_DPU_CFG0, 0x00);
-	reg_val = (ctx->qos_cfg.awqos_high << 12) |
-		(ctx->qos_cfg.awqos_low << 8) |
-		(ctx->qos_cfg.arqos_high << 4) |
-		(ctx->qos_cfg.arqos_low) | BIT(18) | BIT(22);
+	reg_val = (qos_cfg.awqos_high << 12) |
+		(qos_cfg.awqos_low << 8) |
+		(qos_cfg.arqos_high << 4) |
+		(qos_cfg.arqos_low) | BIT(18) | BIT(22);
 	DPU_REG_WR(ctx->base + REG_DPU_CFG1, reg_val);
 	DPU_REG_WR(ctx->base + REG_DPU_CFG2, 0x14002);
 
@@ -1084,44 +1134,9 @@ static void disable_vsync(struct dpu_context *ctx)
 	DPU_REG_CLR(ctx->base + REG_DPU_INT_EN, BIT_DPU_INT_VSYNC);
 }
 
-static int dpu_context_init(struct dpu_context *ctx, struct device_node *np)
+static int dpu_context_init(struct dpu_context *ctx)
 {
 	struct dpu_enhance *enhance;
-	struct device_node *qos_np;
-	int ret;
-
-	qos_np = of_parse_phandle(np, "sprd,qos", 0);
-	if (!qos_np)
-		pr_warn("can't find dpu qos cfg node\n");
-
-	ret = of_property_read_u8(qos_np, "arqos-low",
-					&ctx->qos_cfg.arqos_low);
-	if (ret) {
-		ctx->qos_cfg.arqos_low = 0x1;
-		pr_warn("read arqos-low failed, use default\n");
-	}
-
-	ret = of_property_read_u8(qos_np, "arqos-high",
-					&ctx->qos_cfg.arqos_high);
-	if (ret) {
-		pr_warn("read arqos-high failed, use default\n");
-		ctx->qos_cfg.arqos_high = 0x7;
-	}
-
-	ret = of_property_read_u8(qos_np, "awqos-low",
-					&ctx->qos_cfg.awqos_low);
-	if (ret) {
-		pr_warn("read awqos_low failed, use default\n");
-		ctx->qos_cfg.awqos_low = 0x1;
-	}
-
-	ret = of_property_read_u8(qos_np, "awqos-high",
-					&ctx->qos_cfg.awqos_high);
-	if (ret) {
-		pr_warn("read awqos-high failed, use default\n");
-		ctx->qos_cfg.awqos_high = 0x7;
-	}
-
 
 	enhance = kzalloc(sizeof(*enhance), GFP_KERNEL);
 	if (!enhance)
@@ -1172,6 +1187,11 @@ static void dpu_enhance_backup(struct dpu_context *ctx, u32 id, void *param)
 		enhance->enhance_en &= ~(*p);
 		pr_info("enhance disable backup: 0x%x\n", *p);
 		break;
+	case ENHANCE_CFG_ID_SCL:
+		memcpy(&enhance->scale_copy, param, sizeof(enhance->scale_copy));
+		enhance->enhance_en |= BIT(0);
+		pr_info("enhance scaling backup\n");
+		break;
 	case ENHANCE_CFG_ID_HSV:
 		memcpy(&enhance->hsv_copy, param, sizeof(enhance->hsv_copy));
 		enhance->enhance_en |= BIT(2);
@@ -1214,6 +1234,7 @@ static void dpu_epf_set(struct dpu_context *ctx, struct epf_cfg *epf)
 static void dpu_enhance_set(struct dpu_context *ctx, u32 id, void *param)
 {
 	struct dpu_enhance *enhance = ctx->enhance;
+	struct scale_cfg *scale;
 	struct cm_cfg *cm;
 	struct slp_cfg *slp;
 	struct gamma_lut *gamma;
@@ -1238,6 +1259,13 @@ static void dpu_enhance_set(struct dpu_context *ctx, u32 id, void *param)
 		p = param;
 		DPU_REG_CLR(ctx->base + REG_DPU_ENHANCE_CFG, *p);
 		pr_info("enhance module disable: 0x%x\n", *p);
+		break;
+	case ENHANCE_CFG_ID_SCL:
+		memcpy(&enhance->scale_copy, param, sizeof(enhance->scale_copy));
+		scale = &enhance->scale_copy;
+		DPU_REG_WR(ctx->base + REG_BLEND_SIZE, (scale->in_h << 16) | scale->in_w);
+		DPU_REG_SET(ctx->base + REG_DPU_ENHANCE_CFG, BIT(0));
+		pr_info("enhance scaling: %ux%u\n", scale->in_w, scale->in_h);
 		break;
 	case ENHANCE_CFG_ID_HSV:
 		memcpy(&enhance->hsv_copy, param, sizeof(enhance->hsv_copy));
@@ -1312,6 +1340,7 @@ static void dpu_enhance_set(struct dpu_context *ctx, u32 id, void *param)
 
 static void dpu_enhance_get(struct dpu_context *ctx, u32 id, void *param)
 {
+	struct scale_cfg *scale;
 	struct epf_cfg *ep;
 	struct slp_cfg *slp;
 	struct gamma_lut *gamma;
@@ -1322,6 +1351,13 @@ static void dpu_enhance_get(struct dpu_context *ctx, u32 id, void *param)
 		p32 = param;
 		*p32 = DPU_REG_RD(ctx->base + REG_DPU_ENHANCE_CFG);
 		pr_info("enhance module enable get\n");
+		break;
+	case ENHANCE_CFG_ID_SCL:
+		scale = param;
+		val = DPU_REG_RD(ctx->base + REG_BLEND_SIZE);
+		scale->in_w = val & 0xffff;
+		scale->in_h = val >> 16;
+		pr_info("enhance scaling get\n");
 		break;
 	case ENHANCE_CFG_ID_EPF:
 		ep = param;
@@ -1406,12 +1442,20 @@ static void dpu_enhance_get(struct dpu_context *ctx, u32 id, void *param)
 static void dpu_enhance_reload(struct dpu_context *ctx)
 {
 	struct dpu_enhance *enhance = ctx->enhance;
+	struct scale_cfg *scale;
 	struct cm_cfg *cm;
 	struct slp_cfg *slp;
 	struct gamma_lut *gamma;
 	struct hsv_lut *hsv;
 	struct epf_cfg *epf;
 	int i;
+
+	if (enhance->enhance_en & BIT(0)) {
+		scale = &enhance->scale_copy;
+		DPU_REG_WR(ctx->base + REG_BLEND_SIZE, (scale->in_h << 16) | scale->in_w);
+		pr_info("enhance scaling from %ux%u to %ux%u\n", scale->in_w,
+			scale->in_h, ctx->vm.hactive, ctx->vm.vactive);
+	}
 
 	if (enhance->enhance_en & BIT(1)) {
 		epf = &enhance->epf_copy;
@@ -1472,18 +1516,18 @@ static void dpu_enhance_reload(struct dpu_context *ctx)
 static int dpu_modeset(struct dpu_context *ctx,
 		struct drm_display_mode *mode)
 {
-	struct scale_config_param *scale_cfg = &ctx->scale_cfg;
+	struct dpu_enhance *enhance = ctx->enhance;
 
-	scale_cfg->in_w = mode->hdisplay;
-	scale_cfg->in_h = mode->vdisplay;
+	enhance->scale_copy.in_w = mode->hdisplay;
+	enhance->scale_copy.in_h = mode->vdisplay;
 
 	if ((mode->hdisplay != ctx->vm.hactive) ||
-	    (mode->vdisplay != ctx->vm.vactive))
-		scale_cfg->need_scale = true;
+		(mode->vdisplay != ctx->vm.vactive))
+		enhance->need_scale = true;
 	else
-		scale_cfg->need_scale = false;
+		enhance->need_scale = false;
 
-	scale_cfg->sr_mode_changed = true;
+	enhance->mode_changed = true;
 	pr_info("begin switch to %u x %u\n", mode->hdisplay, mode->vdisplay);
 
 	return 0;
@@ -1491,6 +1535,7 @@ static int dpu_modeset(struct dpu_context *ctx,
 
 const struct dpu_core_ops dpu_lite_r2p0_core_ops = {
 	.version = dpu_version,
+	.parse_dt = dpu_parse_dt,
 	.init = dpu_init,
 	.fini = dpu_fini,
 	.run = dpu_run,

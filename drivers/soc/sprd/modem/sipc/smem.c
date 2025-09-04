@@ -113,7 +113,7 @@ static struct smem_pool *shmem_find_pool(u32 dst, u32 smem)
 	return spool;
 }
 
-static void *soc_modem_ram_vmap(phys_addr_t start, size_t size, E_MMAP_TYPE mtype)
+static void *soc_modem_ram_vmap(phys_addr_t start, size_t size, int noncached)
 {
 	struct page **pages;
 	phys_addr_t page_start;
@@ -132,9 +132,7 @@ static void *soc_modem_ram_vmap(phys_addr_t start, size_t size, E_MMAP_TYPE mtyp
 
 	page_start = start - offset_in_page(start);
 	page_count = DIV_ROUND_UP(size + offset_in_page(start), PAGE_SIZE);
-	if (mtype == MMAP_WRITECOMBINE)
-		prot = pgprot_writecombine(PAGE_KERNEL);
-	else if (mtype == MMAP_NONCACHE)
+	if (noncached)
 		prot = pgprot_noncached(PAGE_KERNEL);
 	else
 		prot = PAGE_KERNEL;
@@ -164,9 +162,9 @@ static void *soc_modem_ram_vmap(phys_addr_t start, size_t size, E_MMAP_TYPE mtyp
 	return vaddr;
 }
 
-static void *pcie_modem_ram_vmap(phys_addr_t start, size_t size, E_MMAP_TYPE mtype)
+static void *pcie_modem_ram_vmap(phys_addr_t start, size_t size, int noncached)
 {
-	if (mtype == MMAP_CACHE) {
+	if (noncached == 0) {
 		pr_err("cache not support!\n");
 		return NULL;
 	}
@@ -220,7 +218,7 @@ static void soc_modem_ram_unmap(const void *mem)
 
 static void *shmem_ram_vmap(u8 dst, u16 smem, phys_addr_t start,
 			    size_t size,
-			    E_MMAP_TYPE mtype)
+			    int noncached)
 {
 	struct smem_pool *spool;
 
@@ -243,7 +241,7 @@ static void *shmem_ram_vmap(u8 dst, u16 smem, phys_addr_t start,
 		return (spool->pcie_base + start - spool->addr);
 	}
 
-	return soc_modem_ram_vmap(start, size, mtype);
+	return soc_modem_ram_vmap(start, size, noncached);
 
 }
 
@@ -395,14 +393,14 @@ EXPORT_SYMBOL_GPL(smem_free_ex);
 void *shmem_ram_vmap_nocache_ex(u8 dst, u16 smem,
 				phys_addr_t start, size_t size)
 {
-	return shmem_ram_vmap(dst, smem, start, size, MMAP_NONCACHE);
+	return shmem_ram_vmap(dst, smem, start, size, 1);
 }
 EXPORT_SYMBOL_GPL(shmem_ram_vmap_nocache_ex);
 
 
 void *shmem_ram_vmap_cache_ex(u8 dst, u16 smem, phys_addr_t start, size_t size)
 {
-	return shmem_ram_vmap(dst, smem, start, size, MMAP_CACHE);
+	return shmem_ram_vmap(dst, smem, start, size, 0);
 }
 EXPORT_SYMBOL_GPL(shmem_ram_vmap_cache_ex);
 
@@ -424,21 +422,12 @@ void shmem_ram_unmap_ex(u8 dst, u16 smem, const void *mem)
 }
 EXPORT_SYMBOL_GPL(shmem_ram_unmap_ex);
 
-void *modem_ram_vmap_ex(u32 modem_type, phys_addr_t start, size_t size, E_MMAP_TYPE mtype)
-{
-	if (modem_type == PCIE_MODEM)
-		return pcie_modem_ram_vmap(start, size, mtype);
-	else
-		return soc_modem_ram_vmap(start, size, mtype);
-}
-EXPORT_SYMBOL_GPL(modem_ram_vmap_ex);
-
 void *modem_ram_vmap_nocache(u32 modem_type, phys_addr_t start, size_t size)
 {
 	if (modem_type == PCIE_MODEM)
-		return pcie_modem_ram_vmap(start, size, MMAP_NONCACHE);
+		return pcie_modem_ram_vmap(start, size, 1);
 	else
-		return soc_modem_ram_vmap(start, size, MMAP_NONCACHE);
+		return soc_modem_ram_vmap(start, size, 1);
 }
 EXPORT_SYMBOL_GPL(modem_ram_vmap_nocache);
 
@@ -446,9 +435,9 @@ EXPORT_SYMBOL_GPL(modem_ram_vmap_nocache);
 void *modem_ram_vmap_cache(u32 modem_type, phys_addr_t start, size_t size)
 {
 	if (modem_type == PCIE_MODEM)
-		return pcie_modem_ram_vmap(start, size, MMAP_CACHE);
+		return pcie_modem_ram_vmap(start, size, 0);
 	else
-		return soc_modem_ram_vmap(start, size, MMAP_CACHE);
+		return soc_modem_ram_vmap(start, size, 0);
 }
 EXPORT_SYMBOL_GPL(modem_ram_vmap_cache);
 

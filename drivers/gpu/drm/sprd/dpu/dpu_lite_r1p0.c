@@ -3,7 +3,6 @@
  * Copyright (C) 2020 Unisoc Inc.
  */
 
-#include <drm/drm_vblank.h>
 #include <linux/delay.h>
 #include <linux/io.h>
 #include <linux/wait.h>
@@ -15,9 +14,6 @@
 
 /* DPU registers size, 4 Bytes(32 Bits) */
 #define DPU_REG_SIZE		0x04
-
-/* DPU meomory address to DDRC offset */
-#define DPU_MEM_DDRC_ADDR_OFFSET 0x80000000
 
 /* Layer registers offset */
 #define DPU_LAY_REG_OFFSET	0x0C
@@ -121,7 +117,7 @@
 #define BIT_DPU_INT_ERR			BIT(2)
 #define BIT_DPU_INT_EDPI_TE		BIT(3)
 #define BIT_DPU_INT_UPDATE_DONE		BIT(4)
-#define BIT_DPU_INT_VSYNC		BIT(5)
+#define BIT_DPU_INT_DPI_VSYNC		BIT(5)
 #define BIT_DPU_INT_WB_DONE		BIT(6)
 #define BIT_DPU_INT_WB_FAIL		BIT(7)
 #define BIT_DPU_INT_MMU_VAOR_RD		BIT(16)
@@ -142,8 +138,6 @@
 #define DISPC_SATURATION_V         (0x100 << 0)
 
 static bool panel_ready = true;
-
-static int boot_charging;
 
 static void dpu_clean_all(struct dpu_context *ctx);
 static void dpu_layer(struct dpu_context *ctx,
@@ -166,33 +160,14 @@ static bool dpu_check_raw_int(struct dpu_context *ctx, u32 mask)
 	return false;
 }
 
-static void dpu_charger_mode(void)
+static int dpu_parse_dt(struct dpu_context *ctx,
+				struct device_node *np)
 {
-	struct device_node *cmdline_node;
-	const char *cmdline, *mode;
-	int ret;
-
-	cmdline_node = of_find_node_by_path("/chosen");
-	ret = of_property_read_string(cmdline_node, "bootargs", &cmdline);
-
-	if (ret) {
-		pr_err("Can't not parse bootargs\n");
-		return;
-	}
-
-	mode = strstr(cmdline, "androidboot.mode=charger");
-
-	if (mode)
-		boot_charging = 1;
-	else
-		boot_charging = 0;
-
+	return 0;
 }
 
 static u32 dpu_isr(struct dpu_context *ctx)
 {
-	struct sprd_dpu *dpu =
-		(struct sprd_dpu *)container_of(ctx, struct sprd_dpu, ctx);
 	u32 reg_val, int_mask = 0;
 
 	reg_val = DPU_REG_RD(ctx->base + REG_DPU_INT_STS);
@@ -200,9 +175,6 @@ static u32 dpu_isr(struct dpu_context *ctx)
 	/* disable err interrupt */
 	if (reg_val & BIT_DPU_INT_ERR)
 		int_mask |= BIT_DPU_INT_ERR;
-
-	if (reg_val & BIT_DPU_INT_VSYNC)
-		drm_crtc_handle_vblank(&dpu->crtc->base);
 
 	/* dpu update done isr */
 	if (reg_val & BIT_DPU_INT_UPDATE_DONE) {
@@ -334,8 +306,6 @@ static int dpu_init(struct dpu_context *ctx)
 		dpu_clean_all(ctx);
 
 	DPU_REG_WR(ctx->base + REG_DPU_INT_CLR, 0xffff);
-
-	dpu_charger_mode();
 
 	return 0;
 }
@@ -526,11 +496,6 @@ static void dpu_layer(struct dpu_context *ctx,
 		if (hwlayer->addr[i] % 16)
 			pr_err("layer addr[%d] is not 16 bytes align, it's 0x%08x\n",
 			       i, hwlayer->addr[i]);
-		/* for poweroff charging , iommu not enabled,
-		   sharkle DPU is direct connect with DDRC, so memory addr need remove offset */
-		if (boot_charging && (hwlayer->addr[i] >= DPU_MEM_DDRC_ADDR_OFFSET)) {
-			hwlayer->addr[i] -= DPU_MEM_DDRC_ADDR_OFFSET;
-		}
 		DPU_REG_WR(ctx->base + DPU_LAY_PLANE_ADDR(REG_LAY_BASE_ADDR,
 			   hwlayer->index, i), hwlayer->addr[i]);
 	}
@@ -647,7 +612,7 @@ static void dpu_dpi_init(struct dpu_context *ctx)
 		/* enable dpu DONE  INT */
 		int_mask |= BIT_DPU_INT_DONE;
 		/* enable dpu dpi vsync */
-		int_mask |= BIT_DPU_INT_VSYNC;
+		int_mask |= BIT_DPU_INT_DPI_VSYNC;
 		/* enable dpu TE INT */
 		int_mask |= BIT_DPU_INT_TE;
 		/* enable underflow err INT */
@@ -690,15 +655,15 @@ static void dpu_dpi_init(struct dpu_context *ctx)
 
 static void enable_vsync(struct dpu_context *ctx)
 {
-	DPU_REG_SET(ctx->base + REG_DPU_INT_EN, BIT_DPU_INT_VSYNC);
+	DPU_REG_SET(ctx->base + REG_DPU_INT_EN, BIT_DPU_INT_DPI_VSYNC);
 }
 
 static void disable_vsync(struct dpu_context *ctx)
 {
-	DPU_REG_CLR(ctx->base + REG_DPU_INT_EN, BIT_DPU_INT_VSYNC);
+	DPU_REG_CLR(ctx->base + REG_DPU_INT_EN, BIT_DPU_INT_DPI_VSYNC);
 }
 
-static int dpu_context_init(struct dpu_context *ctx, struct device_node *np)
+static int dpu_context_init(struct dpu_context *ctx)
 {
 	ctx->base_offset[0] = 0x0;
 	ctx->base_offset[1] = DPU_MAX_REG_OFFSET / 4;
@@ -726,6 +691,7 @@ static void dpu_capability(struct dpu_context *ctx,
 
 const struct dpu_core_ops dpu_lite_r1p0_core_ops = {
 	.version = dpu_version,
+	.parse_dt = dpu_parse_dt,
 	.init = dpu_init,
 	.fini = dpu_fini,
 	.run = dpu_run,

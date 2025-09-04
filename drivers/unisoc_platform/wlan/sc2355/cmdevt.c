@@ -204,31 +204,6 @@ const char *sc2355_cmdevt_cmd2str(u8 cmd)
 	return cmdevt_cmd2str(cmd);
 }
 
-int cmdevt_report_ip_addr(struct sprd_vif *vif, u8 *data, u16 len)
-{
-	struct ip_addr_info *info = (struct ip_addr_info *)data;
-	u8 *p;
-
-	if (!len) {
-		netdev_err(vif->ndev, "%s event data len=0\n", __func__);
-		return -EINVAL;
-	}
-	p = (u8 *)info->ip_addr;
-	if (info->type == 0x0800) {
-		netdev_info(vif->ndev, "%s ipv4: %pI4\n", __func__, p);
-	} else if (info->type == 0x0806) {
-		netdev_info(vif->ndev, "%s ARP ip: %pI4\n", __func__, p);
-	} else if (info->type == 0x86DD) {
-		netdev_info(vif->ndev, "%s ipv6: %pI6", __func__, p);
-	} else if (info->type == 0x888E) {
-		netdev_err(vif->ndev, "%s type: EAPOL(GTK/PTK)\n", __func__);
-	} else {
-		netdev_err(vif->ndev, "%s unknow type:%x\n", __func__, info->type);
-	}
-
-	return 0;
-}
-
 static const char *cmdevt_evt2str(u8 evt)
 {
 	switch (evt) {
@@ -290,8 +265,6 @@ static const char *cmdevt_evt2str(u8 evt)
 		return "EVT_ACS_LTE_CONFLICT_EVENT";
 	case EVT_FRESH_POWER_BO:
 		return "EVT_FRESH_POWER_BO";
-	case EVT_REPORT_IP_ADDR:
-		return "EVT_REPORT_IP_ADDR";
 	default:
 		return "WIFI_EVENT_UNKNOWN";
 	}
@@ -528,18 +501,11 @@ int sc2355_assert_cmd(struct sprd_priv *priv, struct sprd_vif *vif, u8 cmd_id,
 		      u8 reason)
 {
 	struct sprd_hif *hif = &priv->hif;
-	struct rx_mgmt *rx_mgmt = NULL;
 	char buf[ASSERT_INFO_BUF_SIZE] = { 0 };
 	u8 idx = 0;
 
 	pr_err("%s cmd_id:%d, reason:%d, cp_asserted:%d\n",
 	       __func__, cmd_id, reason, hif->cp_asserted);
-
-	rx_mgmt = (struct rx_mgmt *)hif->rx_mgmt;
-	if (rx_mgmt) {
-		pr_err("%s latest rx chn %u (%llu %llu).\n", __func__,
-			rx_mgmt->rx_chn, rx_mgmt->rx_handle_ns, rx_mgmt->rx_queue_ns);
-	}
 
 	if (hif->cp_asserted == 0) {
 		hif->cp_asserted = 1;
@@ -726,13 +692,6 @@ int sc2355_send_cmd_recv_rsp(struct sprd_priv *priv, struct sprd_msg *msg, u8 *r
 		cmdevt_unlock_cmd(cmd);
 		return -1;
 	}
-
-	/*
-	 * console_loglevel > 4 will cause cmd resp timeout easily,
-	 * so adjust timeout to 5 seconds when loglevel > 4.
-	 */
-	if ((console_loglevel > 4) && (timeout == CMD_WAIT_TIMEOUT))
-		timeout = CMD_TIMEOUT_DEBUG_LEVEL;
 
 	ret = cmdevt_recv_rsp_timeout(priv, timeout);
 	if (ret != -1) {
@@ -2623,6 +2582,7 @@ int sc2355_xmit_data2cmd(struct sk_buff *skb, struct net_device *ndev)
 		if (eap->type == EAP_PACKET_TYPE &&
 		    eap->opcode == EAP_WSC_DONE) {
 			pr_info("%s, EAP_WSC_DONE!\n", __func__);
+			//vif->wps_flag = 1;
 		}
 	}
 
@@ -3849,9 +3809,6 @@ unsigned short sc2355_rx_evt_process(struct sprd_priv *priv, u8 *msg)
 #endif /* CONFIG_SPRD_WLAN_VENDOR_SPECIFIC */
 	case EVT_FRESH_POWER_BO:
 		sc2355_evt_pw_backoff(vif, data, len);
-		break;
-	case EVT_REPORT_IP_ADDR:
-		cmdevt_report_ip_addr(vif, data, len);
 		break;
 	default:
 		pr_info("unsupported event: %d\n", hdr->cmd_id);

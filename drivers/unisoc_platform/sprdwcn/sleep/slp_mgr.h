@@ -31,7 +31,6 @@
 /* cp2 sleep status */
 #define	STAY_SLPING		0
 #define	STAY_AWAKING	1
-#define	STAY_DEATH	2
 
 struct slp_mgr_t {
 	struct mutex    drv_slp_lock;
@@ -50,5 +49,5 @@ int slp_mgr_deinit(void);
 void slp_mgr_drv_sleep(enum slp_subsys subsys, bool enable);
 int slp_mgr_wakeup(enum slp_subsys subsys);
 void slp_mgr_reset(void);
-int slp_mgr_death(void);
+
 #endif

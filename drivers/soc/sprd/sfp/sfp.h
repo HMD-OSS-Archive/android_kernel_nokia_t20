@@ -18,10 +18,8 @@
 #include <linux/kernel.h>
 #include <linux/timer.h>
 #include <linux/ip.h>
-#include <linux/sipa.h>
 #include <net/tcp.h>
 #include <net/udp.h>
-#include <net/genetlink.h>
 #include <linux/types.h>
 #include <linux/kern_levels.h>
 #include <net/netfilter/nf_nat.h>
@@ -41,10 +39,6 @@
 #define MAC_ADDR_SIZE 6
 
 #define SFP_TCP_CT_WAITING (10 * HZ)
-
-#define SFP_IFACE_PREF "sfp"
-
-extern unsigned int sfp_stats_bytes;
 
 enum {
 	IP_L4_PROTO_NULL = 0,
@@ -186,26 +180,6 @@ struct sfp_fwd_entry {
 	struct sfp_conn *sfp_ct;
 };
 
-#if IS_ENABLED(CONFIG_SPRD_IPA_V3)
-/* sizeof fwd_entry is 120 bytes */
-struct fwd_entry {
-	struct pkt_tuple_info orig_info;
-	struct pkt_tuple_info trans_info;
-	struct mac_info trans_mac_info;
-	u8 out_ifindex;
-	u8 fwd_flags;
-	u8 mac_info_opts;
-	u8 reserve1;
-	u32 pkt_drop_th;
-	u32 pkt_current_idx; /* ip stream index, read-only for software */
-	u32 pkt_total_cnt; /* ip stream totol pkt count */
-	u32 pkt_current_cnt; /* ip stream pkt count currently */
-	u32 pkt_drop_cnt; /* ip stream total pkt drop count */
-	u32 time_stamp;
-	u32 reserve2;
-} __packed;
-#else
-/* sizeof fwd_entry is 96 bytes */
 struct fwd_entry {
 	struct pkt_tuple_info orig_info;
 	struct pkt_tuple_info trans_info;
@@ -215,7 +189,6 @@ struct fwd_entry {
 	__be32 time_stamp;
 	u16 reserve;
 } __packed;
-#endif
 
 struct hd_hash_tbl {
 	u8 pad1;
@@ -245,26 +218,6 @@ struct sfp_conn {
 	struct timer_list timeout;
 	u32 ts;
 	int expire;
-};
-
-enum sfp_attrs {
-	SFP_A_UNSPEC,
-	SFP_A_FILTER,
-	SFP_A_STATS,
-	__SFP_A_MAX
-};
-
-#define SFP_A_MAX (__SFP_A_MAX - 1)
-
-enum sfp_commands {
-	__SFP_CMD_UNSPEC,
-	SFP_NL_CMD_APPEND,
-	SFP_NL_CMD_INSERT,
-	SFP_NL_CMD_DELETE,
-	SFP_NL_CMD_FLUSH,
-	SFP_NL_CMD_LIST,
-	SFP_NL_CMD_STATS,
-	SFP_CMD_MAX,
 };
 
 struct sfp_routing_info {
@@ -306,6 +259,15 @@ struct sfp_ipa_addr {
 	u8 *v_addr;
 	dma_addr_t handle;
 	size_t len;
+};
+
+/*
+ * struct sipa_hash_table - hash table for IPA
+ * TEMP structure for k5.4 GKI scan, no sipa module yet
+ */
+struct sipa_hash_table {
+	u32 depth;
+	u64 tbl_phy_addr;
 };
 
 struct sfp_ipa_hash_tbl {
@@ -544,9 +506,6 @@ void sfp_ipa_init(void);
 
 int sysctl_sfp_init(void);
 void sysctl_sfp_exit(void);
-
-int sfp_netlink_init(void);
-void sfp_netlink_exit(void);
 
 int get_sfp_fwd_entry_count(struct sfp_mgr_fwd_tuple_hash *fwd_hash_entry);
 int delete_in_sfp_fwd_table(const struct sfp_mgr_fwd_tuple_hash *hash);

@@ -15,8 +15,11 @@
 #include "defrag.h"
 #include "mm.h"
 #include "reorder.h"
+#if defined(CONFIG_SC2355_SDIO_WLAN) || defined(CONFIG_SC2355_SDIO_WLAN_MODULE)
 #include "sdio.h"
+#elif defined(CONFIG_SC2355_PCIE_WLAN) || defined(CONFIG_SC2355_PCIE_WLAN_MODULE)
 #include "pcie.h"
+#endif
 
 #define SPRD_MAC_INDEX_MAX	4
 
@@ -76,10 +79,6 @@ struct rx_mgmt {
 	unsigned long rx_total_len;
 	ktime_t rxtimebegin;
 	ktime_t rxtimeend;
-
-	int rx_chn;
-	u64 rx_handle_ns;
-	u64 rx_queue_ns;
 
 	u8 rx_snaphdr_flag;
 	u16 rx_snaphdr_seqnum;

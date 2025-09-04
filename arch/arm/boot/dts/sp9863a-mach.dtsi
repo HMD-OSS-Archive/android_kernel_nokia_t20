@@ -61,11 +61,6 @@
 			reg = <0x9de80000 0x00080000>;
 		};
 
-		/* Only for userdebug, will be removed in user mode by uboot */
-		uboot_reserved: sysdump-uboot@9f000000 {
-			reg = <0x9f000000 0x01000000>;
-		};
-
 		/* must be 1M aligned */
 		sml_reserved: sml-mem@b0000000 {
 			reg = <0xb0000000 0x00020000>;
@@ -311,10 +306,6 @@
 			compatible = "sprd,tshm";
 			memory-region = <&tos_shm_reserved>;
 		};
-
-		tui {
-			compatible = "sprd,trusty-tui-v1";
-		};
 	};
 
 	autotest:autotest{
@@ -358,7 +349,6 @@
 	mmc-hs400-1_8v;
 	mmc-hs200-1_8v;
 	mmc-ddr-1_8v;
-	sprd,name = "sdio_emmc";
 	no-sdio;
 	no-sd;
 	status = "okay";

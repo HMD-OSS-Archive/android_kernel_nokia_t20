@@ -70,22 +70,6 @@
 		sprd,sys-bus-ctrl-sp = <&aon_apb_regs 0x0128 0x1>;
 		sprd,sys-bus-ctrl-ch = <&aon_apb_regs 0x0124 0x1>;
 	};
-
-	dvfs_pscp {
-		compatible = "sprd,pscp-dvfs";
-		sprd,core_id = <2>;
-		sprd,devices-num = <3>;
-		sprd,devices-name = "core", "axi", "apb";
-		sprd,devices-id = <0>, <1>, <2>;
-	};
-
-	dvfs_phycp {
-		compatible = "sprd,phycp-dvfs";
-		sprd,core_id = <3>;
-		sprd,devices-num = <3>;
-		sprd,devices-name = "core", "axi", "apb";
-		sprd,devices-id = <0>, <1>, <2>;
-	};
 };
 
 &sipc {
@@ -107,7 +91,7 @@
 			label = "slog_pm";
 			sprd,ringnr = <1>;
 			sprd,size-rxbuf = <0x5c0>;
-			sprd,size-txbuf = <0x0>;
+			sprd,size-txbuf = <0x20>;
 		};
 
 		sctl_pm: channel@6 {
@@ -116,7 +100,7 @@
 			label = "sctl_pm";
 			sprd,ringnr = <1>;
 			sprd,size-rxbuf = <0x40>;
-			sprd,size-txbuf = <0x20>;
+			sprd,size-txbuf = <0x10>;
 		};
 	};
 
@@ -143,7 +127,7 @@
 			reg = <5>;
 			label = "slog_ch";
 			sprd,ringnr = <1>;
-			sprd,size-rxbuf = <0x4e0>;
+			sprd,size-rxbuf = <0x500>;
 			sprd,size-txbuf = <0x0>;
 		};
 
@@ -153,7 +137,7 @@
 			label = "sctl_ch";
 			sprd,ringnr = <1>;
 			sprd,size-rxbuf = <0x40>;
-			sprd,size-txbuf = <0x20>;
+			sprd,size-txbuf = <0x0>;
 		};
 
 		data0_gnss: channel@7 {
@@ -184,26 +168,6 @@
 		label = "sipc-pscp";
 		mboxes = <&mailbox 3 0>;
 		sprd,smem-info = <0x87800000 0x87800000 0x400000>;
-
-		imsbr_data: channel@2 {
-			compatible = "sprd,spool";
-			reg = <2>;
-			label = "imsbr_data";
-			sprd,tx-blksize = <0x5F4>;
-			sprd,tx-blknum = <64>;
-			sprd,rx-blksize = <0x5F4>;
-			sprd,rx-blknum = <64>;
-		};
-
-		imsbr_ctrl: channel@3 {
-			compatible = "sprd,spool";
-			reg = <3>;
-			label = "imsbr_ctrl";
-			sprd,tx-blksize = <0x80>;
-			sprd,tx-blknum = <64>;
-			sprd,rx-blksize = <0x80>;
-			sprd,rx-blknum = <64>;
-		};
 
 		spipe_nr: channel@4 {
 			compatible = "sprd,spipe";
@@ -284,5 +248,21 @@
 
 	time_sync {
 		compatible = "sprd,time-sync";
+	};
+
+	dvfs_pscp {
+		compatible = "sprd,pscp-dvfs";
+		sprd,core_id = <2>;
+		sprd,devices-num = <3>;
+		sprd,devices-name = "core", "axi", "apb";
+		sprd,devices-id = <0>, <1>, <2>;
+	};
+
+	dvfs_phycp {
+		compatible = "sprd,phycp-dvfs";
+		sprd,core_id = <3>;
+		sprd,devices-num = <3>;
+		sprd,devices-name = "core", "axi", "apb";
+		sprd,devices-id = <0>, <1>, <2>;
 	};
 };

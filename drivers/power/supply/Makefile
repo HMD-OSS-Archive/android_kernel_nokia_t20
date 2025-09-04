@@ -1,4 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0
+
+ifeq ($(TARGET_BUILD_VARIANT),userdebug)
+ccflags-y += -DCONFIG_RDD_DEBUG
+endif
+
 subdir-ccflags-$(CONFIG_POWER_SUPPLY_DEBUG) := -DDEBUG
 
 power_supply-y				:= power_supply_core.o
@@ -67,8 +72,7 @@ obj-$(CONFIG_CHARGER_TWL4030)	+= twl4030_charger.o
 obj-$(CONFIG_CHARGER_LP8727)	+= lp8727_charger.o
 obj-$(CONFIG_CHARGER_LP8788)	+= lp8788-charger.o
 obj-$(CONFIG_CHARGER_GPIO)	+= gpio-charger.o
-obj-$(CONFIG_CHARGER_MANAGER)	+= sprd-charger-manager.o
-sprd-charger-manager-objs := charger-manager.o sprd_vote.o sprd_vchg_detect.o sprd_fchg_extcon.o
+obj-$(CONFIG_CHARGER_MANAGER)	+= charger-manager.o sprd_vote.o
 obj-$(CONFIG_CHARGER_LT3651)	+= lt3651-charger.o
 obj-$(CONFIG_CHARGER_MAX14577)	+= max14577_charger.o
 obj-$(CONFIG_CHARGER_DETECTOR_MAX14656)	+= max14656_charger_detector.o
@@ -101,10 +105,7 @@ obj-$(CONFIG_CHARGER_BD70528)	+= bd70528-charger.o
 obj-$(CONFIG_CHARGER_WILCO)	+= wilco-charger.o
 obj-$(CONFIG_CHARGER_BQ2560X)	+= bq2560x-charger.o
 obj-$(CONFIG_CHARGER_BQ2597X)	+= bq2597x-charger.o
-obj-$(CONFIG_CHARGER_SC8551)	+= sc8551-charger.o
-obj-$(CONFIG_CHARGER_SGM41511)	+= sgm41511-charger.o
-obj-$(CONFIG_CHARGER_UPM6710)	+= upm6710-charger.o
-obj-$(CONFIG_FAST_CHARGER_SC27XX) += sc27xx_fast_charger.o
+obj-$(CONFIG_FAST_CHARGER_SC2730) += sc2730_fast_charger.o
 obj-$(CONFIG_WIRELESS_CHARGE_PUMPS_CONVERTER_HL1506)	+= hl1506_charger.o
 obj-$(CONFIG_WIRELESS_CHARGER_NU1619)	+= nu1619_wireless_charger.o
 obj-$(CONFIG_WIRELESS_CHARGER_SY65153)	+= sy65153_wireless_charger.o

@@ -537,8 +537,7 @@ static inline unsigned int free_segments(struct f2fs_sb_info *sbi)
 
 static inline unsigned int reserved_segments(struct f2fs_sb_info *sbi)
 {
-	return SM_I(sbi)->reserved_segments +
-			SM_I(sbi)->additional_reserved_segments;
+	return SM_I(sbi)->reserved_segments;
 }
 
 static inline unsigned int free_sections(struct f2fs_sb_info *sbi)
@@ -571,10 +570,11 @@ static inline int reserved_sections(struct f2fs_sb_info *sbi)
 	return GET_SEC_FROM_SEG(sbi, reserved_segments(sbi));
 }
 
-static inline bool has_curseg_enough_space(struct f2fs_sb_info *sbi,
-			unsigned int node_blocks, unsigned int dent_blocks)
+static inline bool has_curseg_enough_space(struct f2fs_sb_info *sbi)
 {
-
+	unsigned int node_blocks = get_pages(sbi, F2FS_DIRTY_NODES) +
+					get_pages(sbi, F2FS_DIRTY_DENTS);
+	unsigned int dent_blocks = get_pages(sbi, F2FS_DIRTY_DENTS);
 	unsigned int segno, left_blocks;
 	int i;
 
@@ -600,28 +600,19 @@ static inline bool has_curseg_enough_space(struct f2fs_sb_info *sbi,
 static inline bool has_not_enough_free_secs(struct f2fs_sb_info *sbi,
 					int freed, int needed)
 {
-	unsigned int total_node_blocks = get_pages(sbi, F2FS_DIRTY_NODES) +
-					get_pages(sbi, F2FS_DIRTY_DENTS) +
-					get_pages(sbi, F2FS_DIRTY_IMETA);
-	unsigned int total_dent_blocks = get_pages(sbi, F2FS_DIRTY_DENTS);
-	unsigned int node_secs = total_node_blocks / BLKS_PER_SEC(sbi);
-	unsigned int dent_secs = total_dent_blocks / BLKS_PER_SEC(sbi);
-	unsigned int node_blocks = total_node_blocks % BLKS_PER_SEC(sbi);
-	unsigned int dent_blocks = total_dent_blocks % BLKS_PER_SEC(sbi);
-	unsigned int free, need_lower, need_upper;
+	int node_secs = get_blocktype_secs(sbi, F2FS_DIRTY_NODES);
+	int dent_secs = get_blocktype_secs(sbi, F2FS_DIRTY_DENTS);
+	int imeta_secs = get_blocktype_secs(sbi, F2FS_DIRTY_IMETA);
 
 	if (unlikely(is_sbi_flag_set(sbi, SBI_POR_DOING)))
 		return false;
 
-	free = free_sections(sbi) + freed;
-	need_lower = node_secs + dent_secs + reserved_sections(sbi) + needed;
-	need_upper = need_lower + (node_blocks ? 1 : 0) + (dent_blocks ? 1 : 0);
-
-	if (free > need_upper)
+	if (free_sections(sbi) + freed == reserved_sections(sbi) + needed &&
+			has_curseg_enough_space(sbi))
 		return false;
-	else if (free <= need_lower)
-		return true;
-	return !has_curseg_enough_space(sbi, node_blocks, dent_blocks);
+	return (free_sections(sbi) + freed) <=
+		(node_secs + 2 * dent_secs + imeta_secs +
+		reserved_sections(sbi) + needed);
 }
 
 static inline bool f2fs_is_checkpoint_ready(struct f2fs_sb_info *sbi)
@@ -658,9 +649,7 @@ static inline int utilization(struct f2fs_sb_info *sbi)
  *                     pages over min_fsync_blocks. (=default option)
  * F2FS_IPU_ASYNC - do IPU given by asynchronous write requests.
  * F2FS_IPU_NOCACHE - disable IPU bio cache.
- * F2FS_IPU_HONOR_OPU_WRITE - use OPU write prior to IPU write if inode has
- *                            FI_OPU_WRITE flag.
- * F2FS_IPU_DISABLE - disable IPU. (=default option in LFS mode)
+ * F2FS_IPUT_DISABLE - disable IPU. (=default option in LFS mode)
  */
 #define DEF_MIN_IPU_UTIL	70
 #define DEF_MIN_FSYNC_BLOCKS	8
@@ -676,7 +665,6 @@ enum {
 	F2FS_IPU_FSYNC,
 	F2FS_IPU_ASYNC,
 	F2FS_IPU_NOCACHE,
-	F2FS_IPU_HONOR_OPU_WRITE,
 };
 
 static inline unsigned int curseg_segno(struct f2fs_sb_info *sbi,

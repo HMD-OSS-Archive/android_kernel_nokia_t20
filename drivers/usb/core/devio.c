@@ -1027,13 +1027,7 @@ static int usbdev_open(struct inode *inode, struct file *file)
 		goto out_free_ps;
 
 	usb_lock_device(dev);
-	/*
-	 * When the usb host is in suspend mode, we can not resume the usb
-	 * host from userspace. Only resume the host when slave device is
-	 * attached.
-	 */
-	if (dev->state == USB_STATE_NOTATTACHED ||
-	    dev->state == USB_STATE_SUSPENDED)
+	if (dev->state == USB_STATE_NOTATTACHED)
 		goto out_unlock_device;
 
 	ret = usb_autoresume_device(dev);

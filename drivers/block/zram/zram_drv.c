@@ -936,7 +936,7 @@ static ssize_t read_block_state(struct file *file, char __user *buf,
 			zram_test_flag(zram, index, ZRAM_IDLE_FAST) ?
 					'f' : '.');
 
-		if (count <= copied) {
+		if (count < copied) {
 			zram_slot_unlock(zram, index);
 			break;
 		}
@@ -1509,14 +1509,19 @@ compress_again:
 				__GFP_KSWAPD_RECLAIM |
 				__GFP_NOWARN |
 				__GFP_HIGHMEM |
+#ifdef CONFIG_ARM
 				__GFP_CMA |
+#endif
 				__GFP_MOVABLE);
 	if (!entry) {
 		zcomp_stream_put(zram->comp);
 		atomic64_inc(&zram->stats.writestall);
 		entry = zram_entry_alloc(zram, comp_len,
 				GFP_NOIO | __GFP_HIGHMEM |
-				__GFP_CMA | __GFP_MOVABLE);
+#ifdef CONFIG_ARM
+				__GFP_CMA |
+#endif
+				__GFP_MOVABLE);
 		if (entry)
 			goto compress_again;
 		return -ENOMEM;

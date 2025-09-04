@@ -17,8 +17,6 @@
 
 	sprd,sc-id = "ums512 1h10 go";
 
-	sprd,board_id = <0x1900>; //XX00:base board,XX00~XXFF:customize board
-
 	fragment {
 		target-path = "/";
 		__overlay__ {
@@ -130,12 +128,12 @@
 							<3813000 40>, <3796000 35>, <3783000 30>,
 							<3770000 25>, <3752000 20>, <3730000 15>,
 							<3698000 10>, <3687000 5>, <3400000 0>;
-				voltage-temp-table = <1110270 800>, <999440 850>, <890430 900>,
-							  <785590 950>, <687630 1000>, <598220 1050>,
-							  <517680 1100>, <446100 1150>, <383390 1200>,
-							  <328950 1250>, <281840 1300>, <241480 1350>,
-							  <207030 1400>, <177580 1450>, <152490 1500>,
-							  <131160 1550>, <113000 1600>, <97790 1650>;
+				voltage-temp-table = <1095000 800>, <986000 850>, <878000 900>,
+							<775000 950>, <678000 1000>, <590000 1050>,
+							<510000 1100>, <440000 1150>, <378000 1200>,
+							<324000 1250>, <278000 1300>, <238000 1350>,
+							<204000 1400>, <175000 1450>, <150000 1500>,
+							<129000 1550>, <111000 1600>, <96000 1650>;
 				capacity-temp-table = <45 100>, <25 100>, <10 98>, <0 93>, <(-10) 85>, <(-20) 64>;
 				resistance-temp-table = <45 77>, <25 100>, <10 546>, <0 769>, <(-10) 892>, <(-20) 923>;
 
@@ -182,7 +180,7 @@
 				charge-sdp-current-microamp = <500000 500000>;
 				charge-dcp-current-microamp = <1150000 3000000>;
 				charge-cdp-current-microamp = <1150000 1150000>;
-				charge-unknown-current-microamp = <1050000 1050000>;
+				charge-unknown-current-microamp = <500000 500000>;
 
 				dcp-jeita-temp-table = <1000 1030 0 4400000>, <1150 1180 700000 4400000>,
 					<1450 1420 1150000 4400000>, <1600 1570 700000 4100000>;
@@ -190,8 +188,9 @@
 					<1450 1420 500000 4400000>, <1600 1570 500000 4100000>;
 				cdp-jeita-temp-table = <1000 1030 0 4400000>, <1150 1180 700000 4400000>,
 					<1450 1420 1150000 4400000>, <1600 1570 700000 4100000>;
-				unknown-jeita-temp-table = <1000 1030 0 4400000>, <1150 1180 700000 4400000>,
-					<1450 1420 1050000 4400000>, <1600 1570 700000 4100000>;
+				unknown-jeita-temp-table = <1000 1030 0 4400000>, <1150 1180 500000 4400000>,
+					<1450 1420 500000 4400000>, <1600 1570 500000 4100000>;
+				force-jeita-status = <2>;
 			};
 
 			charger-manager {
@@ -205,6 +204,7 @@
 				cm-fullbatt-vchkdrop-volt = <60000>;
 				cm-fullbatt-capacity = <100>;
 
+				cm-num-chargers = <1>;
 				cm-chargers = "fan54015_charger";
 				cm-fuel-gauge = "sc27xx-fgu";
 
@@ -240,8 +240,13 @@
 
 				cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
 
-				phys = <&hsphy>;
-
+				regulator@0 {
+					cm-regulator-name = "vddgen0";
+					cable@0 {
+						cm-cable-name = "USB";
+						extcon = <&pmic_typec>;
+					};
+				};
 			};
 
 			tboard_thermistor:thermal-sensor {
@@ -478,6 +483,7 @@
 	fan54015_chg: charger@6a {
 		compatible = "fairchild,fan54015_chg";
 		reg = <0x6a>;
+		phys = <&hsphy>;
 		monitored-battery = <&bat>;
 		extcon = <&extcon_gpio>;
 		vddvbus:otg-vbus {
@@ -493,8 +499,8 @@
 
 &ddr_dfs {
 	sprd-scene = "boost", "lcdon", "lcdoff", "camlow",
-		"camhigh", "camveryhigh", "faceid", "top", "boot-opt";
-	sprd-freq = <1333 768 256 384 512 0xbacd 1333 0xbacd 1333>;
+		"camhigh", "camveryhigh", "faceid", "top";
+	sprd-freq = <1333 768 256 384 512 0xbacd 1333 0xbacd>;
 };
 
 &panel {
@@ -507,16 +513,6 @@
 &dpu {
 	sprd,backlight = <&pwm_backlight>;
 	sprd,logo-memory = <&logo_reserved>;
-};
-
-&lcd_td4310_truly_mipi_fhd {
-	sprd,sr-width = <720>;
-	sprd,sr-height = <1440>;
-};
-
-&lcd_ssd2092_truly_mipi_fhd {
-	sprd,sr-width = <720>;
-	sprd,sr-height = <1440>;
 };
 
 &chosen {
@@ -556,12 +552,6 @@
 	sprd,hw-channels = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
 			   <17 0x1844>, <19 0x1844>, <21 0x1864>, <30 0x1820>,
 			   <32 0x197c>, <33 0x1988>, <35 0x19b8>, <39 0x19ac>;
-	sprd,hw-channels0 = <2 0x18cc>, <3 0x18cc>, <13 0x1874>, <15 0x1874>,
-			<17 0x1844>, <19 0x1854>, <21 0x1864>, <30 0x1820>,
-			<32 0x197c>, <33 0x1988>, <35 0x19b8>, <39 0x19ac>;
-	sprd,hw-channels1 = <2 0x18cc>, <3 0x18cc>, <13 0x1854>, <15 0x1874>,
-			<17 0x1844>, <19 0x1844>, <21 0x1864>, <30 0x1820>,
-			<35 0x19b8>, <39 0x19ac>, <32 0x197c>, <33 0x1988>;
 };
 
 &vddldo0 {
@@ -575,7 +565,7 @@
 };
 
 &usb {
-	extcon = <&pmic_typec>;
+	extcon = <&extcon_gpio>, <&pmic_typec>;
 	status = "okay";
 	vbus-supply = <&vddvbus>;
 };
@@ -583,7 +573,7 @@
 &pmic_fgu {
 	monitored-battery = <&bat>;
 	sprd,calib-resistance-micro-ohms = <10000>;
-	sprd,comp-resistance-mohm = <13>;
+	sprd,comp-resistance-mohm = <20>;
 
 	fgu-capacity-track;
 	phys = <&hsphy>;
@@ -705,5 +695,41 @@
 	gpio_16: rffe1_sda {
 		pins = "SHARKL5PRO_RFFE1_SDA";
 		function = "func4";
+	};
+};
+
+&lcd_td4310_truly_mipi_fhd {
+	sprd,phy-bit-clock = <1104000>;  /* kbps */
+
+	display-timings {
+		td4310_truly_timing1: timing1 {
+			clock-frequency = <153600000>;
+			hactive = <720>;
+			vactive = <1440>;
+			hback-porch = <20>;
+			hfront-porch = <50>;
+			vback-porch = <28>;
+			vfront-porch = <4>;
+			hsync-len = <2>;
+			vsync-len = <2>;
+		};
+	};
+};
+
+&lcd_ssd2092_truly_mipi_fhd {
+	sprd,phy-bit-clock = <1104000>;  /* kbps */
+
+	display-timings {
+		ssd2092_truly_timing1: timing1 {
+			clock-frequency = <153600000>;
+			hactive = <720>;
+			vactive = <1440>;
+			hback-porch = <20>;
+			hfront-porch = <20>;
+			vback-porch = <43>;
+			vfront-porch = <76>;
+			hsync-len = <4>;
+			vsync-len = <1>;
+		};
 	};
 };

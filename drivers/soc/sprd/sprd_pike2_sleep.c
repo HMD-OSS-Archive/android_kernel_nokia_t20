@@ -18,7 +18,7 @@
 #include <dt-bindings/soc/sprd,pike2-regs.h>
 #include <linux/of_device.h>
 #include <linux/cpuidle-sprd.h>
-#include <linux/tick.h>
+
 #define SPRD_DIS_ALL			0xffffffff
 #define SPRD_FRC_LIGHT			0x3ffff
 #define	SPRD_INTCV_IRQ_EN		0x0008
@@ -75,7 +75,6 @@ module_param_named(test_power, test_power, int, 0644);
 
 /* Used to MCU_SYS_SLEEP debug */
 module_param_named(mcu_sleep_debug, mcu_sleep_debug, int, 0644);
-
 
 static void pm_ca7_core_auto_gate_enable(int enable)
 {
@@ -175,24 +174,11 @@ static void doze_sleep_bak_restore_uarteb(int bak)
 	}
 }
 
-static DEFINE_SPINLOCK(light_sleep_lock);
-static cpumask_t cpus_lightsleep = CPU_MASK_NONE;
-static unsigned int is_auto_gate_enable;
 void sprd_pike2_light_en(void)
 {
 	u32 val = 0;
-	unsigned long flags;
-	u32 cpu;
-	u32 is_allcpusleep = 0;
 
-	cpu = smp_processor_id();
-	spin_lock_irqsave(&light_sleep_lock, flags);
-	cpumask_set_cpu(cpu, &cpus_lightsleep);
-	if (cpumask_weight(&cpus_lightsleep) == num_online_uniso_cpus())
-		is_allcpusleep = 1;
-
-	spin_unlock_irqrestore(&light_sleep_lock, flags);
-	if (!light_sleep || is_allcpusleep == 0)
+	if (!light_sleep || smp_processor_id() != 0)
 		return;
 
 	regmap_read(cpuidle_syscon_apahb, REG_AP_AHB_MST_FRC_LSLP, &val);
@@ -202,17 +188,15 @@ void sprd_pike2_light_en(void)
 			     SPRD_FRC_LIGHT);
 
 	regmap_read(cpuidle_syscon_apahb, REG_AP_AHB_AHB_EB, &val);
-	if (!val)
+	if (!val && (num_online_cpus() == 1))
 		regmap_update_bits(cpuidle_syscon_apahb,
 				   REG_AP_AHB_MCU_PAUSE,
 				   MASK_AP_AHB_MCU_SYS_SLEEP_EN,
 				   MASK_AP_AHB_MCU_SYS_SLEEP_EN);
 
 	pm_sync_gic_intc();
-	if (is_allcpusleep) {
+	if (num_online_cpus() == 1)
 		pm_ca7_core_auto_gate_enable(1);
-		is_auto_gate_enable = 1;
-	}
 	regmap_update_bits(cpuidle_syscon_apahb,
 			   REG_AP_AHB_MCU_PAUSE,
 			   MASK_AP_AHB_MCU_LIGHT_SLEEP_EN,
@@ -222,19 +206,14 @@ void sprd_pike2_light_en(void)
 void sprd_pike2_light_dis(void)
 {
 	u32 cpu;
-	unsigned long flags;
 
-	cpu = smp_processor_id();
-	spin_lock_irqsave(&light_sleep_lock, flags);
-	cpumask_clear_cpu(cpu, &cpus_lightsleep);
-	spin_unlock_irqrestore(&light_sleep_lock, flags);
 	if (!light_sleep)
 		return;
 
-	if (is_auto_gate_enable) {
+	cpu = smp_processor_id();
+	if (cpu == 0) {
 		pm_sync_gic_intc();
 		pm_ca7_core_auto_gate_enable(0);
-		is_auto_gate_enable = 0;
 	}
 
 	regmap_update_bits(cpuidle_syscon_aonapb,
@@ -426,8 +405,7 @@ static void sprd_doze_sleep_exit(void)
 
 void sprd_pike2_doze_en(void)
 {
-
-	if (apsys_master_slave_check() == 0 && num_online_uniso_cpus() == 1)
+	if (apsys_master_slave_check() == 0 && num_online_cpus() == 1)
 		sprd_doze_sleep_enter();
 	else
 		sprd_pike2_light_en();

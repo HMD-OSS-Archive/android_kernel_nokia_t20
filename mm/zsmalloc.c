@@ -290,6 +290,9 @@ struct zspage {
 #ifdef CONFIG_COMPACTION
 	rwlock_t lock;
 #endif
+#if defined(CONFIG_E_SHOW_MEM) && defined(CONFIG_ARM64)
+	gfp_t gfp_mask;
+#endif
 };
 
 struct mapping_area {
@@ -347,7 +350,11 @@ static void destroy_cache(struct zs_pool *pool)
 static unsigned long cache_alloc_handle(struct zs_pool *pool, gfp_t gfp)
 {
 	return (unsigned long)kmem_cache_alloc(pool->handle_cachep,
+#ifdef CONFIG_ARM
 			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+#else
+			gfp & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
+#endif
 }
 
 static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
@@ -358,7 +365,11 @@ static void cache_free_handle(struct zs_pool *pool, unsigned long handle)
 static struct zspage *cache_alloc_zspage(struct zs_pool *pool, gfp_t flags)
 {
 	return kmem_cache_alloc(pool->zspage_cachep,
+#ifdef CONFIG_ARM
 			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE|__GFP_CMA));
+#else
+			flags & ~(__GFP_HIGHMEM|__GFP_MOVABLE));
+#endif
 }
 
 static void cache_free_zspage(struct zs_pool *pool, struct zspage *zspage)
@@ -1048,9 +1059,6 @@ static void create_page_chain(struct size_class *class, struct zspage *zspage,
 				SetPageHugeObject(page);
 		} else {
 			prev_page->freelist = page;
-#ifdef CONFIG_SPRD_PAGE_OWNER
-			SetPagePrivate(page);
-#endif
 		}
 		prev_page = page;
 	}
@@ -1076,6 +1084,10 @@ static struct zspage *alloc_zspage(struct zs_pool *pool,
 
 	for (i = 0; i < class->pages_per_zspage; i++) {
 		struct page *page;
+#if defined(CONFIG_E_SHOW_MEM) && defined(CONFIG_ARM64)
+		unsigned long pfn;
+		unsigned long page_addr;
+#endif
 
 		page = alloc_page(gfp);
 		if (!page) {
@@ -1087,6 +1099,16 @@ static struct zspage *alloc_zspage(struct zs_pool *pool,
 			return NULL;
 		}
 
+#if defined(CONFIG_E_SHOW_MEM) && defined(CONFIG_ARM64)
+		pfn = page_to_pfn(page);
+		page_addr = pfn<<12;
+		zspage->gfp_mask = gfp;
+		if ((page_addr >= 0xf0000000) && (page_addr < 0xf3000000)) {
+			pr_info("XXXX-CMA-WARN: pfn: 0x%lx,gfp_mask:%#x\n", pfn, gfp);
+			pr_info("CMA-ERROR: If print this log, please contact xiaosong.ma\n");
+			BUG_ON(1);
+		}
+#endif
 		inc_zone_page_state(page, NR_ZSPAGES);
 		pages[i] = page;
 	}
@@ -1751,40 +1773,11 @@ static enum fullness_group putback_zspage(struct size_class *class,
  */
 static void lock_zspage(struct zspage *zspage)
 {
-	struct page *curr_page, *page;
+	struct page *page = get_first_page(zspage);
 
-	/*
-	 * Pages we haven't locked yet can be migrated off the list while we're
-	 * trying to lock them, so we need to be careful and only attempt to
-	 * lock each page under migrate_read_lock(). Otherwise, the page we lock
-	 * may no longer belong to the zspage. This means that we may wait for
-	 * the wrong page to unlock, so we must take a reference to the page
-	 * prior to waiting for it to unlock outside migrate_read_lock().
-	 */
-	while (1) {
-		migrate_read_lock(zspage);
-		page = get_first_page(zspage);
-		if (trylock_page(page))
-			break;
-		get_page(page);
-		migrate_read_unlock(zspage);
-		wait_on_page_locked(page);
-		put_page(page);
-	}
-
-	curr_page = page;
-	while ((page = get_next_page(curr_page))) {
-		if (trylock_page(page)) {
-			curr_page = page;
-		} else {
-			get_page(page);
-			migrate_read_unlock(zspage);
-			wait_on_page_locked(page);
-			put_page(page);
-			migrate_read_lock(zspage);
-		}
-	}
-	migrate_read_unlock(zspage);
+	do {
+		lock_page(page);
+	} while ((page = get_next_page(page)) != NULL);
 }
 
 static int zs_init_fs_context(struct fs_context *fc)
@@ -1867,11 +1860,10 @@ static inline void zs_pool_dec_isolated(struct zs_pool *pool)
 	VM_BUG_ON(atomic_long_read(&pool->isolated_pages) <= 0);
 	atomic_long_dec(&pool->isolated_pages);
 	/*
-	 * Checking pool->destroying must happen after atomic_long_dec()
-	 * for pool->isolated_pages above. Paired with the smp_mb() in
-	 * zs_unregister_migration().
+	 * There's no possibility of racing, since wait_for_isolated_drain()
+	 * checks the isolated count under &class->lock after enqueuing
+	 * on migration_wait.
 	 */
-	smp_mb__after_atomic();
 	if (atomic_long_read(&pool->isolated_pages) == 0 && pool->destroying)
 		wake_up_all(&pool->migration_wait);
 }
@@ -1971,6 +1963,12 @@ static int zs_page_migrate(struct address_space *mapping, struct page *newpage,
 	unsigned int obj_idx;
 	int ret = -EAGAIN;
 
+#ifdef SPRD_ZS_PAGE_MIGRATE
+	if (is_migrate_cma_page(newpage)) {
+		pr_info("XXXX-CMA-WARN:zs_page migrate to cma_page and retry\n");
+		return -EAGAIN;
+	}
+#endif
 	/*
 	 * We cannot support the _NO_COPY case here, because copy needs to
 	 * happen under the zs lock, which does not work with

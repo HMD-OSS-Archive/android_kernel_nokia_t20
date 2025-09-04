@@ -1613,7 +1613,7 @@ static int nu1619_wireless_get_property(struct power_supply *psy,
 		else if (rpp_type == NU1619_RPP_TYPE_EPP)
 			val->intval = POWER_SUPPLY_WIRELESS_CHARGER_TYPE_EPP;
 		else
-			val->intval = POWER_SUPPLY_WIRELESS_CHARGER_TYPE_UNKNOWN;
+			val->intval = POWER_SUPPLY_CHARGER_TYPE_UNKNOWN;
 		break;
 	default:
 		ret =  -EINVAL;
@@ -1647,7 +1647,7 @@ static int nu1619_prop_is_writeable(struct power_supply *psy,
 
 static const struct power_supply_desc nu1619_wireless_charger_desc = {
 	.name			= "nu1619_wireless_charger",
-	.type			= POWER_SUPPLY_TYPE_UNKNOWN,
+	.type			= POWER_SUPPLY_TYPE_WIRELESS,
 	.properties		= nu1619_wireless_properties,
 	.num_properties		= ARRAY_SIZE(nu1619_wireless_properties),
 	.get_property		= nu1619_wireless_get_property,

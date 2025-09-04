@@ -7,5 +7,3 @@ obj-y	+= cpu_usage/
 obj-$(CONFIG_SPRD_LAST_REGS)	+= last_regs/
 obj-y	+= irq/
 obj-y	+= log/
-obj-$(CONFIG_SPRD_PAST_RECORD) += past_record/
-obj-y	+= apb_prot/

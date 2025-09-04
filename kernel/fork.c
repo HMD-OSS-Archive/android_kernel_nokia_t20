@@ -453,9 +453,6 @@ void put_task_stack(struct task_struct *tsk)
 
 void free_task(struct task_struct *tsk)
 {
-#ifdef CONFIG_SECCOMP
-       WARN_ON_ONCE(tsk->seccomp.filter);
-#endif
 	cpufreq_task_times_exit(tsk);
 	scs_release(tsk);
 
@@ -1070,7 +1067,6 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
 	mm->pmd_huge_pte = NULL;
 #endif
 	mm_init_uprobes_state(mm);
-	hugetlb_count_init(mm);
 
 	if (current->mm) {
 		mm->flags = current->mm->flags & MMF_INIT_MASK;
@@ -2206,6 +2202,12 @@ static __latent_entropy struct task_struct *copy_process(
 
 	spin_lock(&current->sighand->siglock);
 
+	/*
+	 * Copy seccomp details explicitly here, in case they were changed
+	 * before holding sighand lock.
+	 */
+	copy_seccomp(p);
+
 	rseq_fork(p, clone_flags);
 
 	/* Don't start children in a dying pid namespace */
@@ -2220,13 +2222,9 @@ static __latent_entropy struct task_struct *copy_process(
 		goto bad_fork_cancel_cgroup;
 	}
 
-	/* No more failure paths after this point. */
-
-	/*
-	 * Copy seccomp details explicitly here, in case they were changed
-	 * before holding sighand lock.
-	 */
-	copy_seccomp(p);
+	/* past the last point of failure */
+	if (pidfile)
+		fd_install(pidfd, pidfile);
 
 	init_task_pid_links(p);
 	if (likely(p->pid)) {
@@ -2275,9 +2273,6 @@ static __latent_entropy struct task_struct *copy_process(
 	spin_unlock(&current->sighand->siglock);
 	syscall_tracepoint_update(p);
 	write_unlock_irq(&tasklist_lock);
-
-	if (pidfile)
-		fd_install(pidfd, pidfile);
 
 	proc_fork_connector(p);
 	sched_post_fork(p);

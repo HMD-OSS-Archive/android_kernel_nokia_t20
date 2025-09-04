@@ -513,7 +513,6 @@ static void tx_prepare_addba(struct sprd_hif *hif, unsigned char lut_index,
 			if (!test_and_set_bit(tid, &peer_entry->ba_tx_done_map))
 				sc2355_tx_addba(hif, peer_entry, tid);
 		}
-		sprd_put_vif(vif);
 	}
 }
 
@@ -1671,6 +1670,10 @@ int sc2355_reset(struct sprd_hif *hif)
 	pr_info("%s set hang recovery status to END, %d\n", __func__, __LINE__);
 	tx_mgmt->hang_recovery_status = HANG_RECOVERY_END;
 
+	/* bug 1985177, initial suspend mode, set to SPRD_PS_RESUMED */
+	pr_info("%s set suspend_mode to RESUMED, %d\n", __func__, __LINE__);
+	hif->suspend_mode = SPRD_PS_RESUMED;
+
 	return 0;
 }
 
@@ -2066,7 +2069,7 @@ int sprd_tx_filter_packet(struct sk_buff *skb, struct net_device *ndev)
 			vif->is_5g_freq, special_data_flag);
 		if (vif->is_5g_freq == 1) {
 			if ((special_data_flag == 2) ||
-			   ((special_data_flag == 1) &&
+			    ((special_data_flag == 1) &&
 			    (vif->prwise_crypto == SPRD_CIPHER_NONE)))
 				return 1;
 		}

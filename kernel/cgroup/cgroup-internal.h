@@ -65,25 +65,6 @@ static inline struct cgroup_fs_context *cgroup_fc2context(struct fs_context *fc)
 	return container_of(kfc, struct cgroup_fs_context, kfc);
 }
 
-struct cgroup_pidlist;
-
-struct cgroup_file_ctx {
-	struct cgroup_namespace	*ns;
-
-	struct {
-		void			*trigger;
-	} psi;
-
-	struct {
-		bool			started;
-		struct css_task_iter	iter;
-	} procs;
-
-	struct {
-		struct cgroup_pidlist	*pidlist;
-	} procs1;
-};
-
 /*
  * A cgroup can be associated with multiple css_sets as different tasks may
  * belong to different cgroups on different hierarchies.  In the other
@@ -264,8 +245,6 @@ int cgroup_show_path(struct seq_file *sf, struct kernfs_node *kf_node,
 
 int __cgroup_task_count(const struct cgroup *cgrp);
 int cgroup_task_count(const struct cgroup *cgrp);
-void cgroup_attach_lock(bool lock_threadgroup);
-void cgroup_attach_unlock(bool lock_threadgroup);
 
 /*
  * rstat.c

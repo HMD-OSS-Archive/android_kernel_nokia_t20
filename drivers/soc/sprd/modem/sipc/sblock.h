@@ -14,8 +14,6 @@
 #ifndef __SBLOCK_H
 #define __SBLOCK_H
 
-#include <linux/sipc.h>
-
 /* flag for CMD/DONE msg type */
 #define SMSG_CMD_SBLOCK_INIT		0x1
 #define SMSG_DONE_SBLOCK_INIT		0x2
@@ -94,8 +92,8 @@ struct sblock_ring {
 
 	struct sprd_pms	*tx_pms;
 	struct sprd_pms	*rx_pms;
-	char	tx_pms_name[MAX_OBJ_NAME_LEN];
-	char	rx_pms_name[MAX_OBJ_NAME_LEN];
+	char	tx_pms_name[20];
+	char	rx_pms_name[20];
 
 	void	*txblk_virt; /* virt of header->txblk_addr */
 	void	*rxblk_virt; /* virt of header->rxblk_addr */
@@ -129,7 +127,6 @@ struct sblock_mgr {
 	u8	dst;
 	u8	channel;
 	int	pre_cfg; /*support in host mode only */
-	u8	smem;
 	u32	state;
 
 	void	*smem_virt;
@@ -156,41 +153,7 @@ struct sblock_mgr {
 
 	void	(*handler)(int event, void *data);
 	void	*data;
-
-	/* used for log loop */
-	u8 wait_recv_flag;
-	u8 wait_release_flag;
-	u8 log_loop_flag;
-	u32 rxblk_end_r_wrptr;
-	u32 rxblk_end_p_rdptr;
 };
-
-#define INVALID_SLOG_DST_INDEX (0xff)
-#define BLK_POOL_CNT	1000
-
-enum {
-	LOG_ID_PS = 0,
-#if defined(CONFIG_UNISOC_SIPC_SLOG_BRIDGE_5G)
-	LOG_ID_PHY,
-#endif
-	LOG_ID_NR,
-};
-
-struct sb_prepare_info {
-	char	*name;
-	void *release_last_addr;
-	u32 recv_last_addr;
-	u8 first_release_flag;
-	u8 first_recv_flag;
-};
-
-struct slog_config {
-	u8 dst;
-	char *sys_name;
-};
-
-extern struct sb_prepare_info sb_prepare_list_info[];
-extern u8 slog_dst2index[];
 
 #ifdef CONFIG_64BIT
 #define SBLOCK_ALIGN_BYTES (8)

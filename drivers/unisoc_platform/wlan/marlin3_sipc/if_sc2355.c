@@ -543,7 +543,7 @@ int sprdwl_intf_tx_list(struct sprdwl_intf *dev,
 	struct sprdwl_msg_buf *msg_pos;
 	struct pcie_addr_buffer *addr_buffer = NULL;
 	struct sprdwl_tx_msg *tx_msg;
-	struct mbuf_t *head = NULL, *tail = NULL, *mbuf_pos;
+	struct mbuf_t *head = NULL, *tail = NULL, *mbuf_pos, *last_mbuf = NULL;
 	/*struct sprdwl_data_hdr *hdr; *//*temp for test*/
 	struct list_head *pos, *tx_list_tail, *tx_head = NULL;
 	struct tx_msdu_dscr *dscr = NULL;
@@ -580,6 +580,7 @@ int sprdwl_intf_tx_list(struct sprdwl_intf *dev,
 		SPRDWL_HW_SIPC == dev->priv->hw_type) {
 		for (i = 0; i < pcie_count && mbuf_pos; i++) {
 			/* To prevent the mbuf_pos->buf not NULL case */
+			last_mbuf = mbuf_pos;
 			mbuf_pos->buf = NULL;
 			mbuf_pos = mbuf_pos->next;
 		}
@@ -593,8 +594,8 @@ int sprdwl_intf_tx_list(struct sprdwl_intf *dev,
 			sprdwl_set_pcie_addr_to_mbuf(tx_msg,
 				mbuf_pos, tx_count);
 		}
-		if (addr_buffer == NULL) {
-			wl_err("%s:%d alloc pcie addr buf fail\n",
+		if (addr_buffer == NULL || last_mbuf != tail) {
+			wl_err("%s:%d alloc pcie addr buf fail or last_mbuf != tail\n",
 			       __func__, __LINE__);
 			sprdwl_mbuf_list_free(dev, head, tail, pcie_count);
 			return -1;
@@ -2303,9 +2304,8 @@ int sprdwl_intf_init(struct sprdwl_intf *intf)
 err:
 		for (; chn > 0; chn--)
 			sprdwcn_bus_chn_deinit(&g_intf_sc2355.hif_ops[chn]);
-
-		g_intf_sc2355.hif_ops = NULL;
 		g_intf_sc2355.max_num = 0;
+          	g_intf_sc2355.hif_ops = NULL;
 	}
 
 	return ret;

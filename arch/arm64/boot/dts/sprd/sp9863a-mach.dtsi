@@ -76,11 +76,6 @@
 			reg = <0x0 0x9de80000 0x0 0x00080000>;
 		};
 
-		/* Only for userdebug, will be removed in user mode by uboot */
-		uboot_reserved: sysdump-uboot@9f000000 {
-			reg = <0x0 0x9f000000 0x0 0x01000000>;
-		};
-
 		/* must be 1M aligned */
 		sml_reserved: sml-mem@b0000000 {
 			reg = <0x0 0xb0000000 0x0 0x00020000>;
@@ -164,10 +159,6 @@
 		sprd-tshm {
 			compatible = "sprd,tshm";
 			memory-region = <&tos_shm_reserved>;
-		};
-
-		tui {
-			compatible = "sprd,trusty-tui-v1";
 		};
 	};
 
@@ -335,7 +326,6 @@
 	bus-width = <4>;
 	sd-uhs-sdr104;
 	sd-uhs-sdr50;
-	sprd,name = "sdio_sd";
 	no-sdio;
 	no-mmc;
 	status = "okay";
@@ -355,7 +345,6 @@
 	mmc-hs400-1_8v;
 	mmc-hs200-1_8v;
 	mmc-ddr-1_8v;
-	sprd,name = "sdio_emmc";
 	no-sdio;
 	no-sd;
 	status = "okay";

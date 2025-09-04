@@ -336,7 +336,8 @@
   __rcu_read_lock
   __rcu_read_unlock
   rdev_get_drvdata
-  refcount_warn_saturate
+  refcount_dec_and_test_checked
+  refcount_inc_checked
   register_reboot_notifier
   __register_rpmsg_driver
   register_shrinker
@@ -593,7 +594,6 @@
   init_dummy_netdev
   __kfifo_alloc
   __kfifo_free
-  ktime_get_with_offset
   __local_bh_enable_ip
   param_ops_ulong
   regulatory_hint
@@ -1096,9 +1096,8 @@
   mod_node_page_state
 
 # required by phy-qcom-qmp.ko
-  devm_get_clk_from_child
+  of_clk_get_by_name
   __of_reset_control_get
-  reset_control_put
 
 # required by phy-qcom-qusb2.ko
   devm_clk_get_optional
@@ -1277,6 +1276,7 @@
   _raw_write_lock_bh
   _raw_write_unlock_bh
   refcount_dec_and_mutex_lock
+  refcount_dec_checked
   release_sock
   rtnl_is_locked
   rtnl_register_module

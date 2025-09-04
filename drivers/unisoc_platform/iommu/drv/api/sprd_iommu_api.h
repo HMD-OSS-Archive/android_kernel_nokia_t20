@@ -57,7 +57,6 @@ struct sprd_iommu_init_param {
 	ulong base_reg_addr;
 	u32 pgt_size;
 	ulong ctrl_reg_addr;
-	u32 phys_offset;
 
 	ulong fm_base_addr;/*fullmode virtual pool base address*/
 	u32 fm_ram_size;

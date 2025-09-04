@@ -15,11 +15,7 @@
 #include "../sdio/sdiohal.h"
 #include "wcn_dbg.h"
 #include "wcn_glb.h"
-#include "wcn_debug_bus.h"
-#include "wcn_boot.h"
-#include "wcn_types.h"
 
-static bool from_ddr;
 extern int is_wcn_shutdown;
 
 struct wcn_sysfs_info {
@@ -38,7 +34,6 @@ struct wcn_sysfs_info {
 	unsigned char loglevel;
 };
 
-bool isInAtCmd;
 static struct wcn_sysfs_info sysfs_info;
 
 void wcn_send_atcmd_lock(void)
@@ -77,13 +72,6 @@ static int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 	struct wcn_pcie_info *pcie_dev;
 	/* common buf for kmalloc */
 	unsigned char *com_buf = NULL;
-
-	if (g_match_config && !g_match_config->unisoc_wcn_integrated) {
-		if (flag_download_done != 1) {
-			WCN_WARN("%s:can not send atcmd before download flag is true\n", __func__);
-			return -EIO;
-		}
-	}
 
 	if (g_match_config && g_match_config->unisoc_wcn_pcie) {
 		pcie_dev = get_wcn_device_info();
@@ -140,11 +128,8 @@ static int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 
 	reinit_completion(&sysfs_info.cmd_completion);
 	ret = sprdwcn_bus_push_list(0, head, tail, num);
-	if (ret) {
- 		WCN_INFO("sprdwcn_bus_push_list error=%d\n", ret);
-		if ((ret == -E_INVALIDPARA) && g_match_config && g_match_config->unisoc_wcn_sipc)
-			sprdwcn_bus_list_free(0, head, tail, num);
-	}
+	if (ret)
+		WCN_INFO("sprdwcn_bus_push_list error=%d\n", ret);
 	timeleft = wait_for_completion_timeout(&sysfs_info.cmd_completion,
 					       3 * HZ);
 	if (g_match_config && g_match_config->unisoc_wcn_sdio) {
@@ -174,12 +159,6 @@ static int wcn_send_atcmd(void *cmd, unsigned char cmd_len,
 
 	return 0;
 }
-
-char *__wcn_get_sw_ver(void)
-{
-	return sysfs_info.sw_ver_buf;
-}
-EXPORT_SYMBOL_GPL(__wcn_get_sw_ver);
 
 static int wcn_get_sw_ver(void)
 {
@@ -311,12 +290,9 @@ static ssize_t wcn_sysfs_show_sw_ver(struct device *dev,
 {
 	size_t len = 0;
 	char a[] = "at+spatgetcp2info\r\n";
-	isInAtCmd = true;
 
-	WCN_INFO("%s \n", __func__);
 	if (!marlin_get_module_status()) {
 		memcpy(buf, sysfs_info.sw_ver_buf, sysfs_info.sw_ver_len);
-		isInAtCmd = false;
 		return sysfs_info.sw_ver_len;
 	}
 
@@ -330,7 +306,6 @@ static ssize_t wcn_sysfs_show_sw_ver(struct device *dev,
 	/* because cp2 pass wrong len */
 	len = strlen(buf);
 	WCN_INFO("show:len=%zd\n", len);
-	isInAtCmd = false;
 
 	return len;
 }
@@ -561,16 +536,11 @@ static ssize_t wcn_sysfs_show_reset_dump(struct device *dev,
 					 char *buf)
 {
 	ssize_t len = PAGE_SIZE;
-	int reset_prop = wcn_sysfs_get_reset_prop();
 
-	if (reset_prop == WCN_ASSERT_ONLY_DUMP)
-		len = snprintf(buf, len, "dump\n");
-	else if (reset_prop == WCN_ASSERT_ONLY_RESET)
+	if (wcn_sysfs_get_reset_prop())
 		len = snprintf(buf, len, "reset\n");
-	else if (reset_prop == WCN_ASSERT_BOTH_RESET_DUMP)
-		len = snprintf(buf, len, "reset_dump\n");
 	else
-		return -EINVAL;
+		len = snprintf(buf, len, "dump\n");
 
 	return len;
 }
@@ -581,17 +551,16 @@ static ssize_t wcn_sysfs_store_reset_dump(struct device *dev,
 {
 	WCN_INFO("%s: buf=%s\n", __func__, buf);
 
-	if (strncmp(buf, "dump", 4) == 0) {
-		atomic_set(&sysfs_info.is_reset, WCN_ASSERT_ONLY_DUMP);
-	} else if (strncmp(buf, "reset_dump", 10) == 0) {
-		atomic_set(&sysfs_info.is_reset, WCN_ASSERT_BOTH_RESET_DUMP);
-	} else if (strncmp(buf, "reset", 5) == 0) {
-		atomic_set(&sysfs_info.is_reset, WCN_ASSERT_ONLY_RESET);
+	if (strncmp(buf, "reset", 5) == 0) {
+		atomic_set(&sysfs_info.is_reset, 0x1);
+	} else if (strncmp(buf, "dump", 4) == 0) {
+		atomic_set(&sysfs_info.is_reset, 0x0);
 	} else if (strncmp(buf, "manual_dump", 11) == 0) {
 		sprdwcn_bus_set_carddump_status(true);
 		wcn_assert_interface(WCN_SOURCE_BTWF, "dumpmem");
-	} else
+	} else {
 		return -EINVAL;
+	}
 
 	return count;
 }
@@ -646,7 +615,7 @@ static ssize_t wcn_sysfs_store_shutting_down(struct device *dev,
 					  struct device_attribute *attr,
 					  const char *buf, size_t count)
 {
-	WCN_INFO("%s: buf=%s, count=%lu\n", __func__, buf, count);
+	WCN_INFO("%s: buf=%s, count=%u\n", __func__, buf, count);
 
 	if (strncmp(buf, "shutting", strlen("shutting")) == 0) {
 		WCN_INFO("%s:Ready to shutdown\n", __func__);
@@ -662,108 +631,6 @@ static DEVICE_ATTR(shutting_down, 0644,
 		   wcn_sysfs_show_shutting_down,
 		   wcn_sysfs_store_shutting_down);
 
-static ssize_t debugbus_show(struct device *dev,
-					struct device_attribute *attr, char *buf)
-{
-	ssize_t len = 0;
-	static int num;
-	ssize_t max_ret = PAGE_SIZE - 4;
-
-	if (IS_ERR_OR_NULL(s_wcn_device.btwf_device)) {
-		WCN_ERR("debugbus is not ready!\n");
-		return 0;
-	}
-	len = s_wcn_device.btwf_device->dbus.curr_size;
-	if (len == 0 || (from_ddr && s_wcn_device.btwf_device->db_to_ddr_disable)) {
-		WCN_INFO("%s debugbus data not imported\n", __func__);
-		return 0;
-	}
-
-	WCN_INFO("%s from_ddr=%d, len=%lu, num=%d, max_ret=%lu\n", __func__, from_ddr,
-			len, num, max_ret);
-	if (len < (num + 1) * max_ret) {
-		/*
-		 * Because the maximum number of 'show' returns is PAGE_SIZE, so we use the method
-		 * of segmented transmission. If we execute here, we think that the last packet of
-		 * has been transmitted, and all the data should be spliced at the user layer.
-		 */
-		WCN_INFO("%s last debugbus info, length=%ld\n", __func__, len % max_ret);
-		if (!from_ddr) {
-			memcpy(buf, &(s_wcn_device.btwf_device->dbus.dbus_data_pool[max_ret * num]),
-					len % max_ret);
-		} else {
-			if (wcn_read_data_from_phy_addr(
-				s_wcn_device.btwf_device->dbus.base_addr + (max_ret * num),
-				buf, len % max_ret)) {
-				WCN_ERR("%s Fail to read(0x%llx,0x%lx)", __func__,
-					s_wcn_device.btwf_device->dbus.base_addr, len % max_ret);
-			}
-		}
-		num = 0;
-		return len % max_ret;
-	}
-
-	WCN_INFO("%s copy %lu(%d)\n", __func__, max_ret, num);
-	if (!from_ddr)
-		memcpy(buf, &s_wcn_device.btwf_device->dbus.dbus_data_pool[max_ret * num], max_ret);
-	else {
-		if (wcn_read_data_from_phy_addr(
-			s_wcn_device.btwf_device->dbus.base_addr + (max_ret * num), buf, max_ret)) {
-			WCN_ERR("%s Fail to read(0x%llx,0x%lx)", __func__,
-					s_wcn_device.btwf_device->dbus.base_addr, max_ret);
-		}
-	}
-	num++;
-
-	return max_ret;
-}
-
-static ssize_t debugbus_store(struct device *dev,
-					struct device_attribute *attr,
-					const char *buf, size_t count)
-{
-	WCN_INFO("%s: buf=%s, count=%lu\n", __func__, buf, count);
-
-	if (strncmp(buf, "ddr", strlen("ddr")) == 0) {
-		from_ddr = true;
-		WCN_INFO("%s:Read debugbus data from DDR\n", __func__);
-	} else if (strncmp(buf, "temp", strlen("temp")) == 0) {
-		WCN_INFO("%s:Read debugbus data from temporary array\n", __func__);
-		from_ddr = false;
-	} else
-		WCN_ERR("Invalid, valid strings:'ddr' and 'temp'!\n");
-
-	return count;
-}
-/* aiaiai: wcn_sys_show_debugbus to debugbus_show, wcn_sys_store_debugbus to debugbus_store */
-static DEVICE_ATTR_RW(debugbus);
-
-
-static ssize_t debugbus_show_trigger_store(struct device *dev, struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	WCN_INFO("%s %s enter\n", buf, __func__);
-
-	debug_bus_show("debugbus_show_trigger_store");
-	return count;
-}
-static DEVICE_ATTR_WO(debugbus_show_trigger);
-
-static ssize_t pm_qos_enable_store(struct device *dev, struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	WCN_INFO("%s %s enter\n", __func__, buf);
-
-	if (!strncmp(buf, "enable", strlen("enable")))
-		wcn_pm_qos_enable();
-	else if (!strncmp(buf, "disable", strlen("disable")))
-		wcn_pm_qos_disable();
-	else
-		WCN_INFO("Invalid, valid strings:'enable' or 'disable'\n");
-
-	return count;
-}
-static DEVICE_ATTR_WO(pm_qos_enable);
 /*
  * ud710_3h10:/sys/devices/platform/sprd-marlin3 # ls
  * sleep_state driver driver_override fwlog hw_pg_ver modalias of_node power
@@ -939,9 +806,6 @@ static struct attribute *wcn_attrs[] = {
 	&dev_attr_reset_dump.attr,
 	&dev_attr_atcmd.attr,
 	&dev_attr_shutting_down.attr,
-	&dev_attr_debugbus.attr,
-	&dev_attr_debugbus_show_trigger.attr,
-	&dev_attr_pm_qos_enable.attr,
 	NULL,
 };
 

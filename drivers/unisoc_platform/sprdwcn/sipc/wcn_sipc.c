@@ -18,8 +18,6 @@
 #include "bus_common.h"
 #include "wcn_integrate.h"
 #include "wcn_sipc.h"
-#include "../platform/wcn_procfs.h"
-#include "wcn_pm_qos.h"
 
 #define SIPC_WCN_DST 3
 
@@ -61,6 +59,7 @@
 .sblk.mapped_smem_base = _mapped_smem_base}
 
 static struct wcn_sipc_info_t g_sipc_info = {0};
+
 /* default sipc channel info */
 /* at/bt/fm use sbuf channel 4:  */
 /* at bufid 5  bt bufid(tx 11 rx 10) fm bufid(tx 14 rx 13) */
@@ -97,9 +96,9 @@ static struct sipc_chn_info g_sipc_chn[SIPC_CHN_NUM] = {
 	INIT_SIPC_CHN_SBLOCK(SIPC_WIFI_CMD_RX, WCNBUS_RX, SIPC_CHN_WIFI_CMD,
 			     4, 2048, 8, 2048, 0, 0, 0),
 	INIT_SIPC_CHN_SBLOCK(SIPC_WIFI_DATA0_TX, WCNBUS_TX, SIPC_CHN_WIFI_DATA0,
-			     64, 1664, 256, 1664, 0, 0, 0),
+			     64, 1664, 192, 1664, 0, 0, 0),
 	INIT_SIPC_CHN_SBLOCK(SIPC_WIFI_DATA0_RX, WCNBUS_RX, SIPC_CHN_WIFI_DATA0,
-			     64, 1664, 256, 1664, 0, 0, 0),
+			     64, 1664, 192, 1664, 0, 0, 0),
 	INIT_SIPC_CHN_SBLOCK(SIPC_WIFI_DATA1_TX, WCNBUS_TX, SIPC_CHN_WIFI_DATA1,
 			     64, 1664, 8, 1664, 0, 0, 0),
 	INIT_SIPC_CHN_SBLOCK(SIPC_WIFI_DATA1_RX, WCNBUS_RX, SIPC_CHN_WIFI_DATA1,
@@ -346,7 +345,7 @@ void wcn_sipc_pop_list_flush(struct sipc_chn_info *sipc_chn)
 		WCN_DEBUG("index:%d  pop_queue->mbuf_num:%d",
 			  sipc_chn->index, pop_queue->mbuf_num);
 		pop_queue->mbuf_tail->next = NULL;
-		if (sipc_chn->ops != NULL && sipc_chn->ops->pop_link != NULL)
+		if (sipc_chn->ops->pop_link != NULL)
 			sipc_chn->ops->pop_link(sipc_chn->index,
 				pop_queue->mbuf_head, pop_queue->mbuf_tail,
 				pop_queue->mbuf_num);
@@ -614,8 +613,6 @@ static void wcn_sipc_sblk_push_list_dequeue(struct sipc_chn_info *sipc_chn)
 	/* nothing to do */
 	if (!sipc_chn->push_queue.mbuf_num) {
 		mutex_unlock(&sipc_chn->pushq_lock);
-		WCN_INFO("channel %d-%d(%d), chn_deinit?\n",
-			sipc_chn->dst, sipc_chn->chn, sipc_chn->index);
 		WCN_HERE_CHN(sipc_chn->index);
 		return;
 	}
@@ -629,13 +626,6 @@ static void wcn_sipc_sblk_push_list_dequeue(struct sipc_chn_info *sipc_chn)
 
 	mbuf = sipc_chn->push_queue.mbuf_head;
 	while (free_blk_num-- && mbuf) {
-		if (!virt_addr_valid(mbuf)) {
-			WCN_ERR("%s : mbuf addr is not in kernel space\n", __func__);
-			sipc_chn->push_queue.mbuf_head = NULL;
-			sipc_chn->push_queue.mbuf_tail = NULL;
-			sipc_chn->push_queue.mbuf_num = 0;
-			break;
-		}
 		ret  = wcn_sipc_sblk_send(sipc_chn, mbuf->buf, mbuf->len);
 		WCN_DEBUG("%s %d free_blk_num %d ret %d ",
 			  __func__, __LINE__, free_blk_num, ret);
@@ -654,8 +644,8 @@ static void wcn_sipc_sblk_push_list_dequeue(struct sipc_chn_info *sipc_chn)
 			sipc_chn->push_queue.mbuf_num = 0;
 		}
 	}
-	wcn_sipc_pop_list_flush(sipc_chn);
 	mutex_unlock(&sipc_chn->pushq_lock);
+	wcn_sipc_pop_list_flush(sipc_chn);
 	WCN_HERE_CHN(sipc_chn->index);
 }
 
@@ -676,14 +666,20 @@ static int wcn_sipc_sblk_push(u8 index,
 			struct mbuf_t *head, struct mbuf_t *tail, int num)
 {
 	struct sipc_chn_info *sipc_chn;
+	int check_count = 0;
 
 	if (unlikely(SIPC_INVALID_CHN(index)))
 		return -E_INVALIDPARA;
 
 	sipc_chn = SIPC_CHN(index);
-	if (wcn_sipc_sblk_chn_rx_status_check(index) != 0) {
-		WCN_ERR("sipc chn %d not created!", sipc_chn->chn);
-		return -E_INVALIDPARA;
+	while (wcn_sipc_sblk_chn_rx_status_check(index) != 0) {
+		WCN_INFO("sipc chn %d wait create ,index %d !\n", sipc_chn->chn, index);
+		msleep(30);
+		check_count++;
+		if (check_count >= 100) {
+			WCN_ERR("sipc chn %d not created!", sipc_chn->chn);
+			return -E_INVALIDPARA;
+		}
 	}
 	wcn_sipc_record_mbuf_recv_from_user(index, num);
 	wcn_sipc_push_list_enqueue(sipc_chn, head, tail, num);
@@ -699,25 +695,10 @@ static void wcn_sipc_sblk_recv(struct sipc_chn_info *sipc_chn)
 	int ret;
 	struct sblock blk;
 
-	u64 cur_pt = 0;
-	u32 last_index = 0;
-	u64 loop_cnt = 0;
-
 	WCN_DEBUG("[%s] idx %d recv sblock msg",
 		  sipc_chn_tostr(sipc_chn->chn, 0), sipc_chn->index);
 
 	while (!sblock_receive(sipc_chn->dst, sipc_chn->chn, &blk, 0)) {
-		last_index = g_sipc_info.chn8_dbg_info.pt_idx;
-		g_sipc_info.chn8_dbg_info.pt_idx++;
-		g_sipc_info.chn8_dbg_info.pt_idx = g_sipc_info.chn8_dbg_info.pt_idx % DBG_PT_NUM;
-		g_sipc_info.chn8_dbg_info.dbg_pt[g_sipc_info.chn8_dbg_info.pt_idx] = \
-			div_u64(ktime_get_boot_fast_ns(), 1000);
-		cur_pt = g_sipc_info.chn8_dbg_info.dbg_pt[g_sipc_info.chn8_dbg_info.pt_idx];
-		if (loop_cnt)
-			g_sipc_info.chn8_dbg_info.dbg_pt[last_index] = cur_pt - \
-				g_sipc_info.chn8_dbg_info.dbg_pt[last_index];
-		loop_cnt++;
-
 		length = blk.length - SIPC_SBLOCK_HEAD_RESERV;
 		WCN_DEBUG("sblk length %d", length);
 		wcn_sipc_record_mbuf_recv_from_bus(sipc_chn->index, 1);
@@ -795,12 +776,6 @@ static int wcn_sipc_push_list(int index, struct mbuf_t *head,
 		return -E_NULLPOINT;
 
 	if (wcn_sipc_ops->inout == WCNBUS_TX) {
-		if (!wcn_push_list_condition_check(head, tail, num)) {
-			WCN_INFO("%s WCN is asserting, cancel send.index=%d",
-				__func__, index);
-			return -E_INVALIDPARA;
-		}
-
 		ret = sipc_data_ops[SIPC_TYPE(index)].sipc_send(
 					index, head, tail, num);
 		if (ret < 0)
@@ -942,11 +917,6 @@ static int wcn_sipc_chn_init(struct mchn_ops_t *ops)
 
 		/* rx chn record tx chn */
 		sipc_chn->relate_index = sipc_chn->index;
-		if (sipc_chn->chn == 8) {
-			g_sipc_info.chn8_dbg_info.pt_idx = 0;
-			memset(&g_sipc_info.chn8_dbg_info.dbg_pt, 0, sizeof(u64) * DBG_PT_NUM);
-			WCN_INFO("sipc chn[%d] clear debug point!\n", idx);
-		}
 		/* sblock */
 		if (SIPC_CHN_STATUS(sipc_chn->chn) == SIPC_CHANNEL_UNCREATED) {
 			ret = sblock_create(sipc_chn->dst, sipc_chn->chn, sipc_chn->sblk.txblocknum,	\
@@ -998,29 +968,18 @@ static int wcn_sipc_chn_deinit(struct mchn_ops_t *ops)
 	int idx = ops->channel;
 
 	struct sipc_chn_info *sipc_chn;
-	struct sipc_chn_info *tx_sipc_chn = NULL;
 
 	sipc_chn = SIPC_CHN(idx);
 	sipc_chn->ops = NULL;
 	WCN_INFO("[%s]:index[%d] chn[%d], sipc_chn->ops = null.\n", __func__, idx, sipc_chn->chn);
 
-	tx_sipc_chn = SIPC_CHN(sipc_chn->relate_index);
-	if (SIPC_CHN_TYPE_SBLK(idx) && SIPC_CHN_DIR_TX(idx)) {
-		WCN_INFO("Wait %d-%d index%d push\n",
-			tx_sipc_chn->dst, tx_sipc_chn->chn, tx_sipc_chn->index);
-		mutex_lock(&tx_sipc_chn->pushq_lock);
-		/* WARNING: wcn_sipc_sblk_push_list_dequeue done */
-		tx_sipc_chn->push_queue.mbuf_num = 0;
-	}
-
 	bus_chn_deinit(ops);
-
-	if (SIPC_CHN_TYPE_SBLK(idx) && SIPC_CHN_DIR_TX(idx))
-		mutex_unlock(&tx_sipc_chn->pushq_lock);
-
 	/* only destroy when chn created fail so it can create again.  */
 	if (SIPC_CHN_TYPE_SBLK(idx)) {
-		if (SIPC_CHN_DIR_TX(idx) && wcn_sipc_sblk_chn_rx_status_check(idx) != 0) {
+		WCN_INFO("sipc chn[%d] status %d!\n", sipc_chn->chn, SIPC_CHN_STATUS(sipc_chn->chn));
+		if (SIPC_CHN_STATUS(sipc_chn->chn) == SIPC_CHANNEL_CREATED &&
+		    SIPC_CHN_DIR_TX(idx) &&
+		    wcn_sipc_sblk_chn_rx_status_check(idx) != 0) {
 			sblock_destroy(sipc_chn->dst, sipc_chn->chn);
 			SIPC_CHN_STATUS(sipc_chn->chn) = SIPC_CHANNEL_UNCREATED;
 			WCN_INFO("sipc chn[%d] deinit and destroy!\n", idx);
@@ -1226,38 +1185,6 @@ int wcn_sipc_preinit(void)
 	return 0;
 }
 
-static int wcn_sipc_pm_qos(unsigned int mode, bool set)
-{
-	return wcn_pm_qos_config_common(mode, set);
-}
-
-#define PT_NUM_PER_LINE 10
-static void sipc_debug_point_show(void)
-{
-	int i = 0;
-	char *buftest;
-	int pos = 0;
-	const size_t bufsz = 12 * DBG_PT_NUM;
-	int i_recd = 0;
-	u64 * dbg_pt = g_sipc_info.chn8_dbg_info.dbg_pt;
-
-	buftest = kmalloc(bufsz, GFP_KERNEL);
-	WCN_INFO("SIPC CHN8 DBG INFO SHOW: index is %d :\n", g_sipc_info.chn8_dbg_info.pt_idx);
-	while (i < DBG_PT_NUM) {
-		pos += scnprintf(buftest + pos, bufsz - pos, "%012lu  ", *dbg_pt++);
-		i++;
-		if (!(i % PT_NUM_PER_LINE)) {
-			pos = 0;
-			WCN_INFO("dbg pt[%04d -- %04d](us): %s\n", i-PT_NUM_PER_LINE+1, i, buftest);
-			memset(buftest, 0, bufsz);
-			i_recd = i;
-		}
-	}
-	if (pos)
-		WCN_INFO("dbg pt[%04d -- %04d]: %s\n", i_recd+1, DBG_PT_NUM, buftest);
-	kfree(buftest);
-}
-
 static struct sprdwcn_bus_ops sipc_bus_ops = {
 	.preinit = wcn_sipc_preinit,
 	.chn_init = wcn_sipc_chn_init,
@@ -1269,8 +1196,6 @@ static struct sprdwcn_bus_ops sipc_bus_ops = {
 	.get_carddump_status = wcn_sipc_get_status,
 	.set_carddump_status = wcn_sipc_set_status,
 	.get_rx_total_cnt = wcn_sipc_get_rxcnt,
-	.pm_qos = wcn_sipc_pm_qos,
-	.debug_point_show = sipc_debug_point_show,
 };
 
 void module_bus_sipc_init(void)

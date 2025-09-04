@@ -38,7 +38,6 @@
 #define PTM_CORESIGHT_LAR		0xfb0
 
 /* PTM_EN */
-#define PTM_TRACE_LTCY_IDLE_EN		BIT(16)
 #define PTM_TRACE_BW_IDLE_EN		BIT(15)
 #define PTM_BW_LTCY_ALL_TRACE_EN	BIT(5)
 #define PTM_TRACE_AREN			BIT(4)
@@ -82,9 +81,6 @@ struct bm_per_info {
 	u32 tmp1;
 	u32 tmp2;
 	u32 perf_data[BM_CHN_MAX][BM_CHN_PARA];
-#ifdef CONFIG_SPRD_PTM_DIFF_R6P1
-	u32 dpu_dcam_ovf[2][10];
-#endif
 };
 
 #define BM_DATA_COUNT			5
@@ -174,24 +170,14 @@ struct ptm_pvt_para {
 	u32				trace_usr_base;
 	u32				usrid_base;
 	u32				grp_sel;
-#ifdef CONFIG_SPRD_PTM_DIFF_R6P1
-	u32				dpu_dcam_ovf_base;
-#endif
 };
 
 static struct ptm_pvt_para ptm_v1_data[] = {
 	{0x80, 0x9c, 0xc0, 0xdc, 0x100, 0x11c, 0x140, 0x15c, 0x160, 0xfac688},
 };
 
-#ifndef CONFIG_SPRD_PTM_DIFF_R6P1
 static struct ptm_pvt_para ptm_v2_data[] = {
 	{0x80, 0xa0, 0xc0, 0xe0, 0x100, 0x120, 0x140, 0x240, 0x160, 0x7fac688},
 };
-#else
-static struct ptm_pvt_para ptm_v2_data[] = {
-	{0x80, 0xa0, 0xc0, 0xe0, 0x100, 0x120, 0x140, 0x240, 0x160, 0x7fac688,
-		0x410},
-};
-#endif
 
 #endif

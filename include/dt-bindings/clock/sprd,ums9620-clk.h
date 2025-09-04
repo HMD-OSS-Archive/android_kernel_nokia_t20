@@ -280,8 +280,8 @@
 #define CLK_SDIO1_1X_EN		98
 #define CLK_SDIO2_2X_EN		99
 #define CLK_SDIO2_1X_EN		100
-#define CLK_EMMC_1X_EN		101
-#define CLK_EMMC_2X_EN		102
+#define CLK_EMMC_2X_EN		101
+#define CLK_EMMC_1X_EN		102
 #define CLK_PLL_TEST_EN		103
 #define CLK_CPHY_CFG_EN		104
 #define CLK_DEBUG_TS_EN		105
@@ -364,6 +364,13 @@
 #define CLK_GIC			13
 #define CLK_PERIPH		14
 #define CLK_TOPDVFS_CLK_NUM	(CLK_PERIPH + 1)
+
+#define CLK_GPU_CORE_EB		0
+#define CLK_GPU_APB_GATE_NUM	(CLK_GPU_CORE_EB + 1)
+
+#define CLK_GPU			0
+#define CLK_AP_MM		1
+#define CLK_GPU_CLK_NUM		(CLK_AP_MM + 1)
 
 #define CLK_USB_EB		0
 #define CLK_USB_SUSPEND_EB	1

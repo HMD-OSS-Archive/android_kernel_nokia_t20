@@ -2659,7 +2659,7 @@ out:
 			cgroup_size = max(cgroup_size, protection);
 
 			scan = lruvec_size - lruvec_size * protection /
-				(cgroup_size + 1);
+				cgroup_size;
 
 			/*
 			 * Minimally target SWAP_CLUSTER_MAX pages to keep

@@ -497,50 +497,6 @@ static int sprd_dma_set_2stage_config(struct sprd_dma_chn *schan)
 	return 0;
 }
 
-static int sprd_dma_clear_2stage_config(struct sprd_dma_chn *schan)
-{
-	struct sprd_dma_dev *sdev = to_sprd_dma_dev(&schan->vc.chan);
-
-	switch (schan->chn_mode) {
-	case SPRD_DMA_SRC_CHN0:
-		sprd_dma_glb_update(sdev, SPRD_DMA_GLB_2STAGE_GRP1,
-				    SPRD_DMA_GLB_SRC_INT |
-				    SPRD_DMA_GLB_TRG_MASK |
-					SPRD_DMA_GLB_2STAGE_EN |
-				    SPRD_DMA_GLB_SRC_CHN_MASK, 0);
-		break;
-
-	case SPRD_DMA_SRC_CHN1:
-		sprd_dma_glb_update(sdev, SPRD_DMA_GLB_2STAGE_GRP2,
-				    SPRD_DMA_GLB_SRC_INT |
-				    SPRD_DMA_GLB_TRG_MASK |
-					SPRD_DMA_GLB_2STAGE_EN |
-				    SPRD_DMA_GLB_SRC_CHN_MASK, 0);
-		break;
-
-	case SPRD_DMA_DST_CHN0:
-		sprd_dma_glb_update(sdev, SPRD_DMA_GLB_2STAGE_GRP1,
-				    SPRD_DMA_GLB_DEST_INT |
-					SPRD_DMA_GLB_2STAGE_EN |
-				    SPRD_DMA_GLB_DEST_CHN_MASK, 0);
-		break;
-
-	case SPRD_DMA_DST_CHN1:
-		sprd_dma_glb_update(sdev, SPRD_DMA_GLB_2STAGE_GRP2,
-				    SPRD_DMA_GLB_DEST_INT |
-					SPRD_DMA_GLB_2STAGE_EN |
-				    SPRD_DMA_GLB_DEST_CHN_MASK, 0);
-		break;
-
-	default:
-		dev_err(sdev->dma_dev.dev, "invalid channel mode setting %d\n",
-			schan->chn_mode);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 static void sprd_dma_set_pending(struct sprd_dma_chn *schan, bool enable)
 {
 	struct sprd_dma_dev *sdev = to_sprd_dma_dev(&schan->vc.chan);
@@ -624,12 +580,6 @@ static void sprd_dma_stop(struct sprd_dma_chn *schan)
 	sprd_dma_set_pending(schan, false);
 	sprd_dma_unset_uid(schan);
 	sprd_dma_clear_int(schan);
-	/*
-	 * If 2-stage transfer is used, the configuration must be clear
-	 * when release DMA channel.
-	 */
-	if (schan->chn_mode)
-		sprd_dma_clear_2stage_config(schan);
 	schan->cur_desc = NULL;
 }
 
@@ -1322,7 +1272,6 @@ static const struct of_device_id sprd_dma_match[] = {
 	{ .compatible = "sprd,sc9860-dma", },
 	{},
 };
-MODULE_DEVICE_TABLE(of, sprd_dma_match);
 
 static int __maybe_unused sprd_dma_runtime_suspend(struct device *dev)
 {

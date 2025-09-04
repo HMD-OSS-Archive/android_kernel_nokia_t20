@@ -56,20 +56,12 @@ enum wcn_sipc_chn_index {
 	SIPC_CHN_NUM
 };
 
-/* debug point for channel 8 debug */
-#define DBG_PT_NUM 1024
-struct sblk_debug_info_t {
-	u64 dbg_pt[DBG_PT_NUM];
-	u32 pt_idx;
-};
-
 struct wcn_sipc_info_t {
 	struct device_node *np;
 	u32 sipc_wcn_version;
 	u32 sipc_chn_status;
 	u32 sipc_channel_state[SIPC_CHN_NUM];
 	struct mutex status_lock;
-	struct sblk_debug_info_t chn8_dbg_info;
 };
 
 struct sbuf_info {

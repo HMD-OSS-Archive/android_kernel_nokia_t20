@@ -44,7 +44,6 @@ static const struct of_device_id sprd_ptm_of_match[] = {
 	{ .compatible = "sprd,orca-ptm", .data = &ptm_v2_data},
 	{ .compatible = "sprd,sharkl5pro-ptm", .data = &ptm_v2_data},
 	{ .compatible = "sprd,qogirl6-ptm", .data = &ptm_v2_data},
-	{ .compatible = "sprd,qogirn6pro-ptm", .data = &ptm_v2_data},
 	{ },
 };
 static struct attribute_group ptm_legacy_group;
@@ -79,13 +78,6 @@ static inline u32 ptm_get_rtran_base(struct sprd_ptm_dev *sdev)
 {
 	return sdev->pvt_data->rtran_base;
 }
-
-#ifdef CONFIG_SPRD_PTM_DIFF_R6P1
-static inline u32 ptm_get_dpu_dcam_ovf_base(struct sprd_ptm_dev *sdev)
-{
-	return sdev->pvt_data->dpu_dcam_ovf_base;
-}
-#endif
 
 static inline u32 ptm_get_msterid_base(struct sprd_ptm_dev *sdev)
 {
@@ -126,10 +118,7 @@ static void sprd_ptm_set_enable(struct sprd_ptm_dev *sdev, bool enable)
 
 static void sprd_ptm_set_lty_enable(struct sprd_ptm_dev *sdev)
 {
-	u32 tmp = readl_relaxed(sdev->base + PTM_EN);
-
-	writel_relaxed(tmp | PTM_ENABLE | PTM_BW_LTCY_CNT_EN,
-		       sdev->base + PTM_EN);
+	writel_relaxed(PTM_ENABLE | PTM_BW_LTCY_CNT_EN, sdev->base + PTM_EN);
 }
 
 static void sprd_ptm_set_lty_trace_enable(struct sprd_ptm_dev *sdev)
@@ -362,10 +351,6 @@ sprd_ptm_legacy_time_handler(struct hrtimer *timer)
 	u32 rly_base = ptm_get_rly_base(sdev);
 	u32 wtran_base = ptm_get_wtran_base(sdev);
 	u32 rtran_base = ptm_get_rtran_base(sdev);
-#ifdef CONFIG_SPRD_PTM_DIFF_R6P1
-	u32 dpu_dcam_ovf_base = ptm_get_dpu_dcam_ovf_base(sdev);
-	int i, j;
-#endif
 	u64 ts_val;
 	static u32 num;
 	u32 wr_cnt;
@@ -399,14 +384,6 @@ sprd_ptm_legacy_time_handler(struct hrtimer *timer)
 		bm_info[wr_cnt].perf_data[chn][5] =
 			readl_relaxed(sdev->base + wly_base + 4 * chn);
 	}
-#ifdef CONFIG_SPRD_PTM_DIFF_R6P1
-	for (i = 0; i < 2; i++) {
-		for (j = 0; j < 10; j++) {
-			bm_info[wr_cnt].dpu_dcam_ovf[i][j] =
-				(readl_relaxed(sdev->base + dpu_dcam_ovf_base + 4 * j) >> (16 * (1 - i))) & 0xffff;
-		}
-	}
-#endif
 	sprd_ptm_set_enable(sdev, true);
 	/* clear ptm count*/
 	writel_relaxed(1, sdev->base + CNT_CLR);
@@ -526,8 +503,7 @@ static void sprd_ptm_init(struct device *dev)
 {
 	struct sprd_ptm_dev *sdev = dev_get_drvdata(dev);
 
-	writel_relaxed(0 | PTM_TRACE_BW_IDLE_EN | PTM_TRACE_LTCY_IDLE_EN,
-			sdev->base + PTM_EN);
+	writel_relaxed(0 | PTM_TRACE_BW_IDLE_EN, sdev->base + PTM_EN);
 	writel_relaxed(0, sdev->base + INT_STU);
 	writel_relaxed(0, sdev->base + FRE_CHG);
 	writel_relaxed(1, sdev->base + MOD_SEL);

@@ -182,16 +182,6 @@ config SPRD_GPU_COOLING_DEVICE
 	  so that the sprd cooling devices can be bound to thermal zone trip points.
 	  this implements the generic gpu cooling mechanism through frequency reduction.
 
-config SPRD_NPU_COOLING_DEVICE
-        tristate "sprd npu cooling device"
-        depends on THERMAL && DEVFREQ_THERMAL
-        depends on ARCH_SPRD
-        help
-          This implements the generic npu cooling mechanism through frequency
-          reduction.
-
-          If you want this support, you should say Y here.
-
 config CLOCK_THERMAL
 	bool "Generic clock cooling support"
 	depends on COMMON_CLK
@@ -455,14 +445,6 @@ config SPRD_THERMAL
 	help
 	  Support for the Spreadtrum thermal sensor driver in the Linux thermal
 	  framework.
-
-config SPRD_THERMAL_R5P0
-	tristate "Spreadtrum Soc Thermal R5P0 Support"
-	depends on ARCH_SPRD || COMPILE_TEST
-	depends on THERMAL_OF
-	help
-	  Enable the spreadtrum soc thermal sensor dirver, which supports
-	  thermal framework to get the temp of cpu/gpu thermal zone.
 
 config SPRD_DEDICATE_THERMAL
 	tristate "Spreadtrum SoC Dedicated Thermal Support"

@@ -27,9 +27,7 @@
 #include <linux/sipc.h>
 #include <linux/sizes.h>
 #include "sipc_priv.h"
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-#include <linux/spi/spi.h>
-#endif
+
 
 #if defined(CONFIG_DEBUG_FS)
 void sipc_debug_putline(struct seq_file *m, char c, int n)
@@ -50,13 +48,6 @@ void sipc_debug_putline(struct seq_file *m, char c, int n)
 	seq_puts(m, buf);
 }
 EXPORT_SYMBOL_GPL(sipc_debug_putline);
-#endif
-
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-static struct notifier_block senddie_panic_nb = {
-	.notifier_call = senddie_callback,
-	.priority = INT_MAX-1,
-};
 #endif
 
 static u64 sprd_u32_to_u64(u32 *mssg)
@@ -82,7 +73,7 @@ static void sprd_rx_callback(struct mbox_client *client, void *message)
 		dev_err(dev, "receive data is null !\n");
 	} else {
 		msg = (struct smsg *)&data;
-		smsg_msg_process(ipc, msg, true);
+		smsg_msg_process(ipc, msg, 1);
 	}
 }
 
@@ -99,27 +90,8 @@ static void sprd_sensor_rx_callback(struct mbox_client *client, void *message)
 		dev_err(dev, "receive data is null !\n");
 	} else {
 		msg = (struct smsg *)&data;
-		smsg_msg_process(ipc, msg, false);
+		smsg_msg_process(ipc, msg, 0);
 	}
-}
-
-static void sprd_wcn_mbox_rx_callback(struct mbox_client *client, void *message)
-{
-	struct smsg_ipc *ipc  = dev_get_drvdata(client->dev);
-	struct smsg *msg = NULL;
-	struct device *dev = client->dev;
-	u64 data;
-
-	data = sprd_u32_to_u64(message);
-	if (!data) {
-		dev_err(dev, "receive data is null !\n");
-	} else {
-		msg = (struct smsg *)&data;
-		if (msg->channel == SMSG_CH_DATA0)
-			return smsg_msg_process(ipc, msg, false);
-		else
-			return smsg_msg_process(ipc, msg, true);
-		}
 }
 
 static int sprd_get_smem_info(struct device *dev,
@@ -223,21 +195,16 @@ static int sprd_ipc_probe(struct platform_device *pdev)
 	 * Not notify the client,so not use tx_done
 	 */
 	ipc->cl.tx_done = NULL;
-	if (ipc->dst == SIPC_ID_WCN) {
-		ipc->cl.rx_callback = sprd_wcn_mbox_rx_callback;
-		dev_info(dev, "register wcn mbox rx callback\n");
-	} else {
-		ipc->cl.rx_callback = sprd_rx_callback;
-	}
+	ipc->cl.rx_callback = sprd_rx_callback;
 	ipc->chan = mbox_request_channel(&ipc->cl, 0);
 	if (IS_ERR(ipc->chan)) {
-		dev_err(dev, "failed to sipc mailbox, dst = %d\n", ipc->dst);
+		dev_err(dev, "failed to sipc mailbox\n");
 		ret = PTR_ERR(ipc->chan);
 		goto out;
 	}
 
 	/* request sensor mailbox channel */
-	if ((ipc->dst == SIPC_ID_PM_SYS) || (ipc->dst == SIPC_ID_CH)) {
+	if (ipc->dst == SIPC_ID_PM_SYS) {
 		/* mailbox request */
 		ipc->sensor_cl = ipc->cl;
 		ipc->sensor_cl.rx_callback = sprd_sensor_rx_callback;
@@ -308,20 +275,12 @@ static struct platform_driver sprd_ipc_driver = {
 
 static int __init sprd_ipc_init(void)
 {
-	smsg_init_wakeup();
 	smsg_init_channel2index();
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-	atomic_notifier_chain_register(&panic_notifier_list, &senddie_panic_nb);
-#endif
 	return platform_driver_register(&sprd_ipc_driver);
 }
 
 static void __exit sprd_ipc_exit(void)
 {
-	smsg_remove_wakeup();
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-	atomic_notifier_chain_unregister(&panic_notifier_list, &senddie_panic_nb);
-#endif
 	platform_driver_unregister(&sprd_ipc_driver);
 }
 

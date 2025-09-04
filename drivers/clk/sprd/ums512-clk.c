@@ -15,7 +15,6 @@
 #include <linux/slab.h>
 
 #include <dt-bindings/clock/sprd,ums512-clk.h>
-#include <dt-bindings/reset/sprd,ums512-reset.h>
 
 #include "common.h"
 #include "composite.h"
@@ -23,7 +22,6 @@
 #include "gate.h"
 #include "mux.h"
 #include "pll.h"
-#include "reset.h"
 
 #define UMS512_MUX_FLAG	\
 	(CLK_GET_RATE_NOCACHE | CLK_SET_RATE_NO_REPARENT)
@@ -107,52 +105,16 @@ static struct clk_hw_onecell_data ums512_pmu_gate_hws = {
 	.num = CLK_PMU_GATE_NUM,
 };
 
-static struct sprd_reset_map ums512_pmu_apb_resets[] = {
-	[RESET_PMU_APB_WTLCP_SOFT_RST]		= { 0x00b0, BIT(0), 0x1000 },
-	[RESET_PMU_APB_PUBCP_SOFT_RST]		= { 0x00b0, BIT(1), 0x1000 },
-	[RESET_PMU_APB_WTLCP_DSP_SOFT_RST]	= { 0x00b0, BIT(2), 0x1000 },
-	[RESET_PMU_APB_MM_SOFT_RST]		= { 0x00b0, BIT(3), 0x1000 },
-	[RESET_PMU_APB_GPU_SOFT_RST]		= { 0x00b0, BIT(4), 0x1000 },
-	[RESET_PMU_APB_AP_SOFT_RST]		= { 0x00b0, BIT(5), 0x1000 },
-	[RESET_PMU_APB_PUB_SOFT_RST]		= { 0x00b0, BIT(6), 0x1000 },
-	[RESET_PMU_APB_APCPU_SOFT_RST]		= { 0x00b0, BIT(7), 0x1000 },
-	[RESET_PMU_APB_SP_SYS_SOFT_RST]		= { 0x00b0, BIT(8), 0x1000 },
-	[RESET_PMU_APB_AUDCP_SYS_SOFT_RST]	= { 0x00b0, BIT(9), 0x1000 },
-	[RESET_PMU_APB_AUDCP_AUDDSP_SOFT_RST]	= { 0x00b0, BIT(10), 0x1000 },
-	[RESET_PMU_APB_AUDCP_AUDDSP_SOFT_RST]	= { 0x00b0, BIT(11), 0x1000 },
-	[RESET_PMU_APB_WTLCP_AON_SOFT_RST]	= { 0x00b0, BIT(12), 0x1000 },
-	[RESET_PMU_APB_WCDMA_AON_SOFT_RST]	= { 0x00b0, BIT(13), 0x1000 },
-	[RESET_PMU_APB_WTLCP_LDSP_SOFT_RST]	= { 0x00b0, BIT(14), 0x1000 },
-	[RESET_PMU_APB_WTLCP_TGDSP_SOFT_RST]	= { 0x00b0, BIT(15), 0x1000 },
-	[RESET_PMU_APB_AP_VSP_SOFT_RST]		= { 0x00b0, BIT(16), 0x1000 },
-	[RESET_PMU_APB_AP_DVSP_SOFT_RST]	= { 0x00b0, BIT(17), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE0_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(18), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE1_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(19), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE2_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(20), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE3_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(21), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE4_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(22), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE5_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(23), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE6_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(24), 0x1000 },
-	[RESET_PMU_APB_APCPU_CORE7_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(25), 0x1000 },
-	[RESET_PMU_APB_APCPU_CLUSTER_MODE_ST_SOFT_RST]	= { 0x00b0, BIT(26), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_pmu_gate_desc = {
 	.clk_clks	= ums512_pmu_gate_clks,
 	.num_clk_clks	= ARRAY_SIZE(ums512_pmu_gate_clks),
 	.hw_clks        = &ums512_pmu_gate_hws,
-	.resets = ums512_pmu_apb_resets,
-	.num_resets = ARRAY_SIZE(ums512_pmu_apb_resets),
 };
 
 /* pll clock at g0 */
-static struct freq_table dpll0_ftable[5] = {
-	{ .ibias = 2, .max_freq = 1173000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 1475000000ULL, .vco_sel = 0 },
-	{ .ibias = 4, .max_freq = 1855000000ULL, .vco_sel = 0 },
-	{ .ibias = 5, .max_freq = 1866000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 itable_dpll0[7] = {6, 0, 0,
+			1173000000ULL, 1475000000ULL,
+			1855000000ULL, 1866000000ULL};
 
 static struct clk_bit_field f_dpll0[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -166,11 +128,9 @@ static struct clk_bit_field f_dpll0[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 0,	.width = 0 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 static SPRD_PLL_HW(dpll0, "dpll0", &dpll0_gate.common.hw, 0x4, 3,
-		   dpll0_ftable, f_dpll0, 240, 1000, 1000, 0, 0);
+		   itable_dpll0, f_dpll0, 240, 1000, 1000, 0, 0);
 static CLK_FIXED_FACTOR_HW(dpll0_58m31, "dpll0-58m31", &dpll0.common.hw,
 			   32, 1, 0);
 
@@ -194,15 +154,10 @@ static struct sprd_clk_desc ums512_g0_pll_desc = {
 };
 
 /* pll clock at g2 */
-static struct freq_table mpll_ftable[7] = {
-	{ .ibias = 1, .max_freq = 1400000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 1600000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 1800000000ULL, .vco_sel = 0 },
-	{ .ibias = 4, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = 5, .max_freq = 2200000000ULL, .vco_sel = 0 },
-	{ .ibias = 6, .max_freq = 2500000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 itable_mpll[8] = {7, 0,
+			1400000000ULL, 1600000000ULL,
+			1800000000ULL, 2000000000ULL,
+			2200000000ULL, 2500000000ULL};
 
 static struct clk_bit_field f_mpll[PLL_FACT_MAX] = {
 	{ .shift = 17,	.width = 1 },	/* lock_done	*/
@@ -216,11 +171,9 @@ static struct clk_bit_field f_mpll[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 77,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 static SPRD_PLL_HW(mpll1, "mpll1", &mpll1_gate.common.hw, 0x0, 3,
-		   mpll_ftable, f_mpll, 240, 1000, 1000, 1, 1200000000);
+		   itable_mpll, f_mpll, 240, 1000, 1000, 1, 1200000000);
 static CLK_FIXED_FACTOR_HW(mpll1_63m38, "mpll1-63m38", &mpll1.common.hw,
 			   32, 1, 0);
 
@@ -244,14 +197,10 @@ static struct sprd_clk_desc ums512_g2_pll_desc = {
 };
 
 /* pll at g3 */
-static struct freq_table ftable[6] = {
-	{ .ibias = 2, .max_freq = 900000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 1100000000ULL, .vco_sel = 0 },
-	{ .ibias = 4, .max_freq = 1300000000ULL, .vco_sel = 0 },
-	{ .ibias = 5, .max_freq = 1500000000ULL, .vco_sel = 0 },
-	{ .ibias = 6, .max_freq = 1600000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 itable[8] = {7, 0, 0,
+			900000000ULL, 1100000000ULL,
+			1300000000ULL, 1500000000ULL,
+			1600000000ULL};
 
 static struct clk_bit_field f_pll[PLL_FACT_MAX] = {
 	{ .shift = 18,	.width = 1 },	/* lock_done	*/
@@ -265,12 +214,10 @@ static struct clk_bit_field f_pll[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 77,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 
 static SPRD_PLL_FW_NAME(rpll, "rpll", "ext-26m", 0x0, 3,
-			ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+			itable, f_pll, 240, 1000, 1000, 1, 750000000);
 
 static SPRD_SC_GATE_CLK_FW_NAME(audio_gate, "audio-gate", "ext-26m", 0x24,
 				0x1000, BIT(1), CLK_IGNORE_UNUSED, 0);
@@ -287,25 +234,19 @@ static struct clk_bit_field f_mpll2[PLL_FACT_MAX] = {
 	{ .shift = 32,	.width = 23},	/* kint		*/
 	{ .shift = 0,	.width = 0 },	/* prediv	*/
 	{ .shift = 77,	.width = 1 },	/* postdiv	*/
-	{ .shift = 0,	.width = 0 },	/* refdiv	*/
-	{ .shift = 0,	.width = 0 },	/* vco_sel	*/
 };
 static SPRD_PLL_HW(mpll0, "mpll0", &mpll0_gate.common.hw, 0x54, 3,
-		   mpll_ftable, f_mpll, 240, 1000, 1000, 1, 1200000000);
+		   itable_mpll, f_mpll, 240, 1000, 1000, 1, 1200000000);
 static CLK_FIXED_FACTOR_HW(mpll0_56m88, "mpll0-56m88", &mpll0.common.hw,
 			   32, 1, 0);
 
-static struct freq_table mpll2_ftable[6] = {
-	{ .ibias = 0, .max_freq = 1200000000ULL, .vco_sel = 0 },
-	{ .ibias = 1, .max_freq = 1400000000ULL, .vco_sel = 0 },
-	{ .ibias = 2, .max_freq = 1600000000ULL, .vco_sel = 0 },
-	{ .ibias = 3, .max_freq = 1800000000ULL, .vco_sel = 0 },
-	{ .ibias = 4, .max_freq = 2000000000ULL, .vco_sel = 0 },
-	{ .ibias = INVALID_MAX_IBIAS, .max_freq = INVALID_MAX_FREQ, .vco_sel = INVALID_MAX_VCO_SEL},
-};
+static const u64 itable_mpll2[6] = {5,
+			1200000000ULL, 1400000000ULL,
+			1600000000ULL, 1800000000ULL,
+			2000000000ULL};
 
 static SPRD_PLL_HW(mpll2, "mpll2", &mpll2_gate.common.hw, 0x9c, 3,
-		   mpll2_ftable, f_mpll2, 240, 1000, 1000, 1, 1000000000);
+		   itable_mpll2, f_mpll2, 240, 1000, 1000, 1, 1000000000);
 static CLK_FIXED_FACTOR_HW(mpll2_47m13, "mpll2-47m13", &mpll2.common.hw,
 			   32, 1, 0);
 
@@ -337,7 +278,7 @@ static struct sprd_clk_desc ums512_g3_pll_desc = {
 
 /* pll clock at gc */
 static SPRD_PLL_FW_NAME(twpll, "twpll", "ext-26m", 0x0, 3,
-			ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+			itable, f_pll, 240, 1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(twpll_768m, "twpll-768m", &twpll.common.hw,
 			   2, 1, 0);
 static CLK_FIXED_FACTOR_HW(twpll_384m, "twpll-384m", &twpll.common.hw,
@@ -380,7 +321,7 @@ static CLK_FIXED_FACTOR_HW(twpll_12m29, "twpll-12m29", &twpll.common.hw,
 			   125, 1, 0);
 
 static SPRD_PLL_FW_NAME(lpll, "lpll", "ext-26m", 0x18, 3,
-			ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+			itable, f_pll, 240, 1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(lpll_614m4, "lpll-614m4", &lpll.common.hw,
 			   2, 1, 0);
 static CLK_FIXED_FACTOR_HW(lpll_409m6, "lpll-409m6", &lpll.common.hw,
@@ -391,19 +332,19 @@ static CLK_FIXED_FACTOR_HW(lpll_30m72, "lpll-30m72", &lpll.common.hw,
 			   40, 1, 0);
 
 static SPRD_PLL_FW_NAME(isppll, "isppll", "ext-26m", 0x30, 3,
-			ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+			itable, f_pll, 240, 1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(isppll_468m, "isppll-468m", &isppll.common.hw,
 			   2, 1, 0);
 static CLK_FIXED_FACTOR_HW(isppll_78m, "isppll-78m", &isppll.common.hw,
 			   12, 1, 0);
 
 static SPRD_PLL_HW(gpll, "gpll", &gpll_gate.common.hw, 0x48, 3,
-		   ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+		   itable, f_pll, 240, 1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(gpll_40m, "gpll-40m", &gpll.common.hw,
 			   20, 1, 0);
 
 static SPRD_PLL_HW(cppll, "cppll", &cppll_gate.common.hw, 0x60, 3,
-		   ftable, f_pll, 240, 1000, 1000, 1, 750000000);
+		   itable, f_pll, 240, 1000, 1000, 1, 750000000);
 static CLK_FIXED_FACTOR_HW(cppll_39m32, "cppll-39m32", &cppll.common.hw,
 			   26, 1, 0);
 
@@ -509,30 +450,10 @@ static struct clk_hw_onecell_data ums512_apahb_gate_hws = {
 	.num	= CLK_AP_AHB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums512_ap_ahb_resets[] = {
-	[RESET_AP_AHB_DSI_SOFT_RST]		= { 0x0004, BIT(0), 0x1000 },
-	[RESET_AP_AHB_DISPC_SOFT_RST]		= { 0x0004, BIT(1), 0x1000 },
-	[RESET_AP_AHB_VDSP_IDMA_VAU_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_AP_AHB_VDSP_MSTD_VAU_SOFT_RST]	= { 0x0004, BIT(3), 0x1000 },
-	[RESET_AP_AHB_VDSP_MSTI_VAU_SOFT_RST]	= { 0x0004, BIT(4), 0x1000 },
-	[RESET_AP_AHB_VDMA_VAU_SOFT_RST]	= { 0x0004, BIT(5), 0x1000 },
-	[RESET_AP_AHB_IPI_SOFT_RST]		= { 0x0004, BIT(6), 0x1000 },
-	[RESET_AP_AHB_VDMA_SOFT_RST]		= { 0x0004, BIT(7), 0x1000 },
-	[RESET_AP_AHB_DMA_SOFT_RST]		= { 0x0004, BIT(8), 0x1000 },
-	[RESET_AP_AHB_VDSP_SOFT_RST]		= { 0x0004, BIT(9), 0x1000 },
-	[RESET_AP_AHB_VDSP_DEBUG_SOFT_RST]	= { 0x0004, BIT(10), 0x1000 },
-	[RESET_AP_AHB_VSP_GLOBAL_SOFT_RST]	= { 0x0004, BIT(11), 0x1000 },
-	[RESET_AP_AHB_VPP_SOFT_RST]		= { 0x0004, BIT(12), 0x1000 },
-	[RESET_AP_AHB_VSP_SOFT_RST]		= { 0x0004, BIT(13), 0x1000 },
-	[RESET_AP_AHB_DISPC_VAU_SOFT_RST]	= { 0x0004, BIT(14), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_apahb_gate_desc = {
 	.clk_clks	= ums512_apahb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums512_apahb_gate),
 	.hw_clks	= &ums512_apahb_gate_hws,
-	.resets = ums512_ap_ahb_resets,
-	.num_resets = ARRAY_SIZE(ums512_ap_ahb_resets),
 };
 
 /* ap clks */
@@ -879,7 +800,7 @@ static SPRD_MUX_CLK_DATA(uart1_clk, "uart1-clk", uart_parents,
 			 0x250, 0, 3, UMS512_MUX_FLAG);
 
 static const struct clk_parent_data thm_parents[] = {
-	{ .fw_name = "ext-32k" },
+	{ .fw_name = "ext-32m" },
 	{ .hw = &clk_250k.hw  },
 };
 static SPRD_MUX_CLK_DATA(thm0_clk, "thm0-clk", thm_parents,
@@ -1621,82 +1542,10 @@ static struct clk_hw_onecell_data ums512_aon_gate_hws = {
 	.num	= CLK_AON_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums512_aon_ahb_resets[] = {
-	[RESET_AON_APB_RC100M_CAL_SOFT_RST]	= { 0x000c, BIT(0), 0x1000 },
-	[RESET_AON_APB_RFTI_SOFT_RST]		= { 0x000c, BIT(1), 0x1000 },
-	[RESET_AON_APB_DCXO_LC_SOFT_RST]	= { 0x000c, BIT(2), 0x1000 },
-	[RESET_AON_APB_BB_CAL_SOFT_RST]		= { 0x000c, BIT(3), 0x1000 },
-	[RESET_AON_APB_MSPI0_SOFT_RST]		= { 0x000c, BIT(4), 0x1000 },
-	[RESET_AON_APB_MSPI1_SOFT_RST]		= { 0x000c, BIT(5), 0x1000 },
-	[RESET_AON_APB_DAP_MTX_SOFT_RST]	= { 0x000c, BIT(6), 0x1000 },
-	[RESET_AON_APB_LVDSDIS_SOFT_RST]	= { 0x000c, BIT(7), 0x1000 },
-	[RESET_AON_APB_SERDES_DPHY_SOFT_RST]	= { 0x000c, BIT(8), 0x1000 },
-	[RESET_AON_APB_SERDES_DPHY_APB_SOFT_RST]	= { 0x000c, BIT(9), 0x1000 },
-	[RESET_AON_APB_AP_EMMC_SOFT_RST]	= { 0x000c, BIT(10), 0x1000 },
-	[RESET_AON_APB_AP_SDIO0_SOFT_RST]	= { 0x000c, BIT(11), 0x1000 },
-	[RESET_AON_APB_AP_SDIO1_SOFT_RST]	= { 0x000c, BIT(12), 0x1000 },
-	[RESET_AON_APB_AP_SDIO2_SOFT_RST]	= { 0x000c, BIT(13), 0x1000 },
-	[RESET_AON_APB_PUBCP_SDIO0_SOFT_RST]	= { 0x000c, BIT(14), 0x1000 },
-	[RESET_AON_APB_EFUSE_SOFT_RST]		= { 0x0010, BIT(0), 0x1000 },
-	[RESET_AON_APB_GPIO_SOFT_RST]		= { 0x0010, BIT(1), 0x1000 },
-	[RESET_AON_APB_MBOX_SOFT_RST]		= { 0x0010, BIT(2), 0x1000 },
-	[RESET_AON_APB_KPD_SOFT_RST]		= { 0x0010, BIT(3), 0x1000 },
-	[RESET_AON_APB_AON_SYST_SOFT_RST]	= { 0x0010, BIT(4), 0x1000 },
-	[RESET_AON_APB_AP_SYST_SOFT_RST]	= { 0x0010, BIT(5), 0x1000 },
-	[RESET_AON_APB_AON_TMR_SOFT_RST]	= { 0x0010, BIT(6), 0x1000 },
-	[RESET_AON_APB_DVFS_TOP_SOFT_RST]	= { 0x0010, BIT(7), 0x1000 },
-	[RESET_AON_APB_OTG_UTMI_SOFT_RST]	= { 0x0010, BIT(8), 0x1000 },
-	[RESET_AON_APB_OTG_PHY_SOFT_RST]	= { 0x0010, BIT(9), 0x1000 },
-	[RESET_AON_APB_SPLK_SOFT_RST]		= { 0x0010, BIT(10), 0x1000 },
-	[RESET_AON_APB_PIN_SOFT_RST]		= { 0x0010, BIT(11), 0x1000 },
-	[RESET_AON_APB_ANA_SOFT_RST]		= { 0x0010, BIT(12), 0x1000 },
-	[RESET_AON_APB_CKG_SOFT_RST]		= { 0x0010, BIT(13), 0x1000 },
-	[RESET_AON_APB_ETC_SOFT_RST]		= { 0x0010, BIT(14), 0x1000 },
-	[RESET_AON_APB_APCPU_TS0_SOFT_RST]	= { 0x0010, BIT(17), 0x1000 },
-	[RESET_AON_APB_APB_BUSMON_SOFT_RST]	= { 0x0010, BIT(18), 0x1000 },
-	[RESET_AON_APB_AON_IIS_SOFT_RST]	= { 0x0010, BIT(19), 0x1000 },
-	[RESET_AON_APB_SCC_SOFT_RST]		= { 0x0010, BIT(20), 0x1000 },
-	[RESET_AON_APB_THM0_SOFT_RST]		= { 0x0014, BIT(0), 0x1000 },
-	[RESET_AON_APB_THM1_SOFT_RST]		= { 0x0014, BIT(1), 0x1000 },
-	[RESET_AON_APB_THM2_SOFT_RST]		= { 0x0014, BIT(2), 0x1000 },
-	[RESET_AON_APB_AP_SIM_AON_TOP_SOFT_RST]	= { 0x0014, BIT(3), 0x1000 },
-	[RESET_AON_APB_PUBCP_SIM0_AON_TOP_SOFT_RST]	= { 0x0014, BIT(4), 0x1000 },
-	[RESET_AON_APB_PUBCP_SIM1_AON_TOP_SOFT_RST]	= { 0x0014, BIT(5), 0x1000 },
-	[RESET_AON_APB_PUBCP_SIM2_AON_TOP_SOFT_RST]	= { 0x0014, BIT(6), 0x1000 },
-	[RESET_AON_APB_I2C_SOFT_RST]		= { 0x0014, BIT(7), 0x1000 },
-	[RESET_AON_APB_PMU_SOFT_RST]		= { 0x0014, BIT(8), 0x1000 },
-	[RESET_AON_APB_ADI_SOFT_RST]		= { 0x0014, BIT(9), 0x1000 },
-	[RESET_AON_APB_EIC_SOFT_RST]		= { 0x0014, BIT(10), 0x1000 },
-	[RESET_AON_APB_AP_INTC0_SOFT_RST]	= { 0x0014, BIT(11), 0x1000 },
-	[RESET_AON_APB_AP_INTC1_SOFT_RST]	= { 0x0014, BIT(12), 0x1000 },
-	[RESET_AON_APB_AP_INTC2_SOFT_RST]	= { 0x0014, BIT(13), 0x1000 },
-	[RESET_AON_APB_AP_INTC3_SOFT_RST]	= { 0x0014, BIT(14), 0x1000 },
-	[RESET_AON_APB_AP_INTC4_SOFT_RST]	= { 0x0014, BIT(15), 0x1000 },
-	[RESET_AON_APB_AP_INTC5_SOFT_RST]	= { 0x0014, BIT(16), 0x1000 },
-	[RESET_AON_APB_AUDCP_INTC_SOFT_RST]	= { 0x0014, BIT(17), 0x1000 },
-	[RESET_AON_APB_PUBCP_INTC_SOFT_RST]	= { 0x0014, BIT(18), 0x1000 },
-	[RESET_AON_APB_WTLCP_TGDSP_INTC_SOFT_RST]	= { 0x0014, BIT(19), 0x1000 },
-	[RESET_AON_APB_WTLCP_LDSP_INTC_SOFT_RST]	= { 0x0014, BIT(20), 0x1000 },
-	[RESET_AON_APB_WTLCP_INTC_SOFT_RST]	= { 0x0014, BIT(21), 0x1000 },
-	[RESET_AON_APB_AP_TMR0_SOFT_RST]	= { 0x0014, BIT(22), 0x1000 },
-	[RESET_AON_APB_AP_TMR1_SOFT_RST]	= { 0x0014, BIT(23), 0x1000 },
-	[RESET_AON_APB_AP_TMR2_SOFT_RST]	= { 0x0014, BIT(24), 0x1000 },
-	[RESET_AON_APB_PWM0_SOFT_RST]		= { 0x0014, BIT(25), 0x1000 },
-	[RESET_AON_APB_PWM1_SOFT_RST]		= { 0x0014, BIT(26), 0x1000 },
-	[RESET_AON_APB_PWM2_SOFT_RST]		= { 0x0014, BIT(27), 0x1000 },
-	[RESET_AON_APB_PWM3_SOFT_RST]		= { 0x0014, BIT(28), 0x1000 },
-	[RESET_AON_APB_AP_WDG_SOFT_RST]		= { 0x0014, BIT(29), 0x1000 },
-	[RESET_AON_APB_APCPU_WDG_SOFT_RST]	= { 0x0014, BIT(30), 0x1000 },
-	[RESET_AON_APB_SERDES_SOFT_RST]		= { 0x0014, BIT(31), 0x1000 },
-	[RESET_AON_APB_DJTAG_SOFT_RST]		= { 0x0130, BIT(10), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_aon_gate_desc = {
 	.clk_clks	= ums512_aon_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums512_aon_gate),
 	.hw_clks	= &ums512_aon_gate_hws,
-	.resets = ums512_aon_ahb_resets,
-	.num_resets = ARRAY_SIZE(ums512_aon_ahb_resets),
 };
 
 /* audcp apb gates */
@@ -1735,18 +1584,10 @@ static struct clk_hw_onecell_data ums512_audcpapb_gate_hws = {
 	.num	= CLK_AUDCP_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums512_audcp_apb_resets[] = {
-	[RESET_AUDCP_APB_WDG_SOFT_RST]	= { 0x0004, BIT(1), 0x1000 },
-	[RESET_AUDCP_APB_TMR0_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_AUDCP_APB_TMR1_SOFT_RST]	= { 0x0004, BIT(3), 0x1000 },
-};
-
 static const struct sprd_clk_desc ums512_audcpapb_gate_desc = {
 	.clk_clks	= ums512_audcpapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums512_audcpapb_gate),
 	.hw_clks	= &ums512_audcpapb_gate_hws,
-	.resets = ums512_audcp_apb_resets,
-	.num_resets = ARRAY_SIZE(ums512_audcp_apb_resets),
 };
 
 /* audcp ahb gates */
@@ -1855,31 +1696,10 @@ static struct clk_hw_onecell_data ums512_audcpahb_gate_hws = {
 	.num	= CLK_AUDCP_AHB_GATE_NUM,
 };
 
-
-static struct sprd_reset_map ums512_audcp_ahb_resets[] = {
-	[RESET_AUDCP_AHB_VBS_24M_SOFT_RST]	= { 0x0008, BIT(0), 0x1000 },
-	[RESET_AUDCP_AHB_DMA_AP_SOFT_RST]	= { 0x0008, BIT(1), 0x1000 },
-	[RESET_AUDCP_AHB_SRC48K_SOFT_RST]	= { 0x0008, BIT(5), 0x1000 },
-	[RESET_AUDCP_AHB_PDM_SOFT_RST]		= { 0x0008, BIT(6), 0x1000 },
-	[RESET_AUDCP_AHB_MCDT_SOFT_RST]		= { 0x0008, BIT(7), 0x1000 },
-	[RESET_AUDCP_AHB_VBCIFD_SOFT_RST]	= { 0x0008, BIT(8), 0x1000 },
-	[RESET_AUDCP_AHB_VBC_SOFT_RST]		= { 0x0008, BIT(9), 0x1000 },
-	[RESET_AUDCP_AHB_SPINLOCK_SOFT_RST]	= { 0x0008, BIT(10), 0x1000 },
-	[RESET_AUDCP_AHB_DMA_CP_SOFT_RST]	= { 0x0008, BIT(11), 0x1000 },
-	[RESET_AUDCP_AHB_IIS0_SOFT_RST]		= { 0x0008, BIT(12), 0x1000 },
-	[RESET_AUDCP_AHB_IIS1_SOFT_RST]		= { 0x0008, BIT(13), 0x1000 },
-	[RESET_AUDCP_AHB_IIS2_SOFT_RST]		= { 0x0008, BIT(14), 0x1000 },
-	[RESET_AUDCP_AHB_UART_SOFT_RST]		= { 0x0008, BIT(16), 0x1000 },
-	[RESET_AUDCP_AHB_AUD_SOFT_RST]		= { 0x0008, BIT(25), 0x1000 },
-	[RESET_AUDCP_AHB_DVFS_SOFT_RST]		= { 0x0008, BIT(26), 0x1000 },
-};
-
 static const struct sprd_clk_desc ums512_audcpahb_gate_desc = {
 	.clk_clks	= ums512_audcpahb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums512_audcpahb_gate),
 	.hw_clks	= &ums512_audcpahb_gate_hws,
-	.resets = ums512_audcp_ahb_resets,
-	.num_resets = ARRAY_SIZE(ums512_audcp_ahb_resets),
 };
 
 /* gpu clocks */
@@ -1932,17 +1752,10 @@ static struct clk_hw_onecell_data ums512_gpu_clk_hws = {
 	.num	= CLK_GPU_CLK_NUM,
 };
 
-static struct sprd_reset_map ums512_gpu_apb_resets[] = {
-	[RESET_GPU_APB_GPU_CORE_SOFT_RST]	= { 0x0000, BIT(0), 0x1000 },
-	[RESET_GPU_APB_SYS_SOFT_RST_REQ_CORE]	= { 0x0000, BIT(1), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_gpu_clk_desc = {
 	.clk_clks	= ums512_gpu_clk,
 	.num_clk_clks	= ARRAY_SIZE(ums512_gpu_clk),
 	.hw_clks	= &ums512_gpu_clk_hws,
-	.resets = ums512_gpu_apb_resets,
-	.num_resets = ARRAY_SIZE(ums512_gpu_apb_resets),
 };
 
 /* mm clocks */
@@ -2181,42 +1994,10 @@ static struct clk_hw_onecell_data ums512_mm_gate_clk_hws = {
 	.num	= CLK_MM_GATE_CLK_NUM,
 };
 
-static struct sprd_reset_map ums512_mm_ahb_resets[] = {
-	[RESET_MM_AHB_CKG_SOFT_RST]		= { 0x0004, BIT(0), 0x1000 },
-	[RESET_MM_AHB_JPG_SOFT_RST]		= { 0x0004, BIT(1), 0x1000 },
-	[RESET_MM_AHB_DCAM_AXI_SOFT_RST]	= { 0x0004, BIT(2), 0x1000 },
-	[RESET_MM_AHB_DCAM2_SOFT_RST]		= { 0x0004, BIT(3), 0x1000 },
-	[RESET_MM_AHB_DCAM1_SOFT_RST]		= { 0x0004, BIT(4), 0x1000 },
-	[RESET_MM_AHB_DCAM0_SOFT_RST]		= { 0x0004, BIT(5), 0x1000 },
-	[RESET_MM_AHB_DCAM_VAU_SOFT_RST]	= { 0x0004, BIT(6), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI2_SOFT_RST]	= { 0x0004, BIT(7), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI1_SOFT_RST]	= { 0x0004, BIT(8), 0x1000 },
-	[RESET_MM_AHB_MIPI_CSI0_SOFT_RST]	= { 0x0004, BIT(9), 0x1000 },
-	[RESET_MM_AHB_ISP_SOFT_RST]		= { 0x0004, BIT(10), 0x1000 },
-	[RESET_MM_AHB_ISP_VAU_SOFT_RST]		= { 0x0004, BIT(11), 0x1000 },
-	[RESET_MM_AHB_ISP_AHB_SOFT_RST]		= { 0x0004, BIT(12), 0x1000 },
-	[RESET_MM_AHB_CPP_DMA_SOFT_RST]		= { 0x0004, BIT(13), 0x1000 },
-	[RESET_MM_AHB_CPP_PATH1_SOFT_RST]	= { 0x0004, BIT(14), 0x1000 },
-	[RESET_MM_AHB_CPP_PATH0_SOFT_RST]	= { 0x0004, BIT(15), 0x1000 },
-	[RESET_MM_AHB_CPP_SOFT_RST]		= { 0x0004, BIT(16), 0x1000 },
-	[RESET_MM_AHB_MM_MAIN_SOFT_RST]		= { 0x0004, BIT(17), 0x1000 },
-	[RESET_MM_AHB_CPP_SOFT_RST_MASK]	= { 0x0004, BIT(18), 0x1000 },
-	[RESET_MM_AHB_JPG_SOFT_RST_MASK]	= { 0x0004, BIT(19), 0x1000 },
-	[RESET_MM_AHB_JPG_VAU_SOFT_RST]		= { 0x0004, BIT(20), 0x1000 },
-	[RESET_MM_AHB_CPP_VAU_SOFT_RST]		= { 0x0004, BIT(21), 0x1000 },
-	[RESET_MM_AHB_FD_VAU_SOFT_RST]		= { 0x0004, BIT(22), 0x1000 },
-	[RESET_MM_AHB_DCAM_ALL_SOFT_RST]	= { 0x0004, BIT(23), 0x1000 },
-	[RESET_MM_AHB_DVFS_SOFT_RST]		= { 0x0004, BIT(24), 0x1000 },
-	[RESET_MM_AHB_FD_SOFT_RST]		= { 0x0004, BIT(26), 0x1000 },
-	[RESET_MM_AHB_FD_SOFT_RST_MASK]		= { 0x0004, BIT(27), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_mm_gate_clk_desc = {
 	.clk_clks	= ums512_mm_gate_clk,
 	.num_clk_clks	= ARRAY_SIZE(ums512_mm_gate_clk),
 	.hw_clks	= &ums512_mm_gate_clk_hws,
-	.resets = ums512_mm_ahb_resets,
-	.num_resets = ARRAY_SIZE(ums512_mm_ahb_resets),
 };
 
 /* ap apb gates */
@@ -2351,38 +2132,10 @@ static struct clk_hw_onecell_data ums512_apapb_gate_hws = {
 	.num	= CLK_AP_APB_GATE_NUM,
 };
 
-static struct sprd_reset_map ums512_ap_apb_resets[] = {
-	[RESET_AP_APB_SIM0_SOFT_RST]		= { 0x0004, BIT(0), 0x1000 },
-	[RESET_AP_APB_IIS0_SOFT_RST]		= { 0x0004, BIT(1), 0x1000 },
-	[RESET_AP_APB_IIS1_SOFT_RST]		= { 0x0004, BIT(2), 0x1000 },
-	[RESET_AP_APB_IIS2_SOFT_RST]		= { 0x0004, BIT(3), 0x1000 },
-	[RESET_AP_APB_SPI0_SOFT_RST]		= { 0x0004, BIT(4), 0x1000 },
-	[RESET_AP_APB_SPI1_SOFT_RST]		= { 0x0004, BIT(5), 0x1000 },
-	[RESET_AP_APB_SPI2_SOFT_RST]		= { 0x0004, BIT(6), 0x1000 },
-	[RESET_AP_APB_SPI3_SOFT_RST]		= { 0x0004, BIT(7), 0x1000 },
-	[RESET_AP_APB_I2C0_SOFT_RST]		= { 0x0004, BIT(8), 0x1000 },
-	[RESET_AP_APB_I2C1_SOFT_RST]		= { 0x0004, BIT(9), 0x1000 },
-	[RESET_AP_APB_I2C2_SOFT_RST]		= { 0x0004, BIT(10), 0x1000 },
-	[RESET_AP_APB_I2C3_SOFT_RST]		= { 0x0004, BIT(11), 0x1000 },
-	[RESET_AP_APB_I2C4_SOFT_RST]		= { 0x0004, BIT(12), 0x1000 },
-	[RESET_AP_APB_UART0_SOFT_RST]		= { 0x0004, BIT(13), 0x1000 },
-	[RESET_AP_APB_UART1_SOFT_RST]		= { 0x0004, BIT(14), 0x1000 },
-	[RESET_AP_APB_UART2_SOFT_RST]		= { 0x0004, BIT(15), 0x1000 },
-	[RESET_AP_APB_SDIO0_SOFT_RST]		= { 0x0004, BIT(16), 0x1000 },
-	[RESET_AP_APB_SDIO1_SOFT_RST]		= { 0x0004, BIT(17), 0x1000 },
-	[RESET_AP_APB_SDIO2_SOFT_RST]		= { 0x0004, BIT(18), 0x1000 },
-	[RESET_AP_APB_EMMC_SOFT_RST]		= { 0x0004, BIT(19), 0x1000 },
-	[RESET_AP_APB_CE_SEC_SOFT_RST]		= { 0x0004, BIT(20), 0x1000 },
-	[RESET_AP_APB_CE_PUB_SOFT_RST]		= { 0x0004, BIT(21), 0x1000 },
-	[RESET_AP_APB_AP_DVFS_SOFT_RST]		= { 0x0004, BIT(22), 0x1000 },
-};
-
 static struct sprd_clk_desc ums512_apapb_gate_desc = {
 	.clk_clks	= ums512_apapb_gate,
 	.num_clk_clks	= ARRAY_SIZE(ums512_apapb_gate),
 	.hw_clks	= &ums512_apapb_gate_hws,
-	.resets = ums512_ap_apb_resets,
-	.num_resets = ARRAY_SIZE(ums512_ap_apb_resets),
 };
 
 static const struct of_device_id sprd_ums512_clk_ids[] = {
@@ -2423,30 +2176,12 @@ MODULE_DEVICE_TABLE(of, sprd_ums512_clk_ids);
 static int ums512_clk_probe(struct platform_device *pdev)
 {
 	const struct sprd_clk_desc *desc;
-	struct sprd_reset *reset;
-	int ret;
 
 	desc = device_get_match_data(&pdev->dev);
 	if (!desc)
 		return -ENODEV;
 
 	sprd_clk_regmap_init(pdev, desc);
-
-	if (desc->num_resets > 0) {
-		reset = devm_kzalloc(&pdev->dev, sizeof(*reset), GFP_KERNEL);
-		if (!reset)
-			return -ENOMEM;
-
-		reset->rcdev.of_node = pdev->dev.of_node;
-		reset->rcdev.ops = &sprd_sc_reset_ops;
-		reset->rcdev.nr_resets = desc->num_resets;
-		reset->reset_map = desc->resets;
-		reset->regmap = platform_get_drvdata(pdev);
-
-		ret = devm_reset_controller_register(&pdev->dev, &reset->rcdev);
-		if (ret)
-			dev_err(&pdev->dev, "Failed to register reset controller\n");
-	}
 
 	return sprd_clk_probe(&pdev->dev, desc->hw_clks);
 }

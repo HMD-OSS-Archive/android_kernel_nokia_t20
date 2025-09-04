@@ -15,7 +15,6 @@
 #include <linux/atomic.h>
 #include <linux/debug_locks.h>
 #include <linux/mm_types.h>
-#include <linux/mmap_lock.h>
 #include <linux/range.h>
 #include <linux/pfn.h>
 #include <linux/percpu-refcount.h>
@@ -2490,7 +2489,13 @@ extern unsigned long arch_reserved_kernel_pages(void);
 #endif
 
 #ifdef CONFIG_E_SHOW_MEM
-extern void enhanced_show_mem(void);
+enum e_show_mem_type {
+	E_SHOW_MEM_BASIC,
+	E_SHOW_MEM_CLASSIC,
+	E_SHOW_MEM_ALL
+};
+extern void enhanced_show_mem(enum e_show_mem_type type);
+extern void enhanced_mem(enum e_show_mem_type type);
 extern int register_e_show_mem_notifier(struct notifier_block *nb);
 extern int unregister_e_show_mem_notifier(struct notifier_block *nb);
 #endif
@@ -2625,7 +2630,6 @@ extern int install_special_mapping(struct mm_struct *mm,
 				   unsigned long flags, struct page **pages);
 
 unsigned long randomize_stack_top(unsigned long stack_top);
-unsigned long randomize_page(unsigned long start, unsigned long range);
 
 extern unsigned long get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned long, unsigned long);
 

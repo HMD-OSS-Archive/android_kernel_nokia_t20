@@ -113,12 +113,6 @@
 			reg = <0x40440000 0x10000>;
 		};
 
-		gpu_ahb_regs: syscon@60100000 {
-			compatible = "syscon";
-			#syscon-cells = <2>;
-			reg = <0x60100000 0x100000>;
-		};
-
 		mm_ahb_regs: syscon@60d00000 {
 			compatible = "syscon";
 			#syscon-cells = <2>;
@@ -166,9 +160,11 @@
 				reg = <0x70100000 0x100>;
 				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x21500030>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART1_EB>,
-					<&ap_clk CLK_UART1>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART1_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -311,7 +307,6 @@
 				compatible = "unisoc,iommuexle-dispc";
 				reg = <0x20800000 0x800>,
 				      <0x20800800 0x80>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x70000000>;
 				iova-size = <0x08000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -338,7 +333,6 @@
 				compatible = "unisoc,iommuexle-gsp";
 				reg = <0x20a00000 0x804>,
 					<0x20a00804 0x80>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x20000000>;
 				iova-size = <0x10000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -428,7 +422,6 @@
 				compatible = "unisoc,iommuexle-vsp";
 				reg = <0x21900000 0x1140>,
 				      <0x21901140 0x60>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x10000000>;
 				iova-size = <0x10000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -467,7 +460,6 @@
 				clock-names = "core_clk";
 				usb-phy = <&hsphy>;
 				phy-names = "usb";
-				sprd,usb-data-enable = <1>;
 			};
 
 			hsphy: hsphy@20e00000 {
@@ -477,8 +469,6 @@
 				sprd,syscon-enable = <&aon_apb_regs>;
 				sprd,tune-value = <0x0005af33>;
 				sprd,vdd-voltage = <3300000>;
-				io-channels = <&pmic_adc 30>, <&pmic_adc 31>;
-				io-channel-names = "dp", "dm";
 				#phy-cells = <0>;
 			};
 		};
@@ -621,7 +611,7 @@
 			};
 
 			timer@40050000 {
-				compatible = "sprd,sharkle-timer", "sprd,sc9860-timer";
+				compatible = "sprd,sharkle-timer";
 				reg = <0x40050000 0x14>;
 				interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&ext_32k>;
@@ -629,7 +619,7 @@
 			};
 
 			timer@40050020 {
-				compatible = "sprd,sharkle-suspend-timer", "sprd,sc9860-suspend-timer";
+				compatible = "sprd,sharkle-suspend-timer";
 				reg = <0x40050020 0x14>;
 				clocks = <&ext_32k>;
 			};
@@ -642,13 +632,7 @@
 				clock-names = "enable";
 				hwlocks = <&hwlock 8>;
 				clocks = <&aonapb_gate CLK_EFUSE_EB>;
-				uid_start: uid-start@ec{
-					reg = <0xec 0x4>;
-				};
 
-				uid_end: uid-end@e8{
-					reg = <0xe8 0x4>;
-				};
 				gthm_sign: cthm-sign@20{
 					reg = <0x20 0x4>;
 					bits = <1 1>;
@@ -821,11 +805,11 @@
 			djtag: djtag@40340000 {
 				compatible = "sprd,djtag";
 				reg = <0x40340000 0x1000>;
-				syscon = <&aon_apb_regs REG_AON_APB_APB_RST2
+				syscon-names = "soft_rst";
+				syscons = <&aon_apb_regs REG_AON_APB_APB_RST2
 					MASK_AON_APB_DJTAG_SOFT_RST>;
-				clock-names = "enable", "tck";
-				clocks = <&aonapb_gate CLK_DJTAG_EB>,
-					<&aonapb_gate CLK_DISP_EMC_EB>;
+				clock-names = "enable";
+				clocks = <&aonapb_gate CLK_DJTAG_EB>;
 				hwlocks = <&hwlock 10>;
 				hwlock-names = "djtag";
 
@@ -878,20 +862,6 @@
 				sprd,syscon-mm-ahb = <&mm_ahb_regs>;
 				sprd,syscon-anlg-phy-g7 = <&anlg_phy_g7_regs>;
 			};
-
-			socid: socid@402e00e0{
-				compatible = "sprd,soc-id";
-				chip_id = <&aon_apb_regs REG_AON_APB_AON_CHIP_ID0
-					MASK_AON_APB_AON_CHIP_ID0>;
-				plat_id = <&aon_apb_regs REG_AON_APB_AON_PLAT_ID0
-					MASK_AON_APB_AON_PLAT_ID0>;
-				implement_id = <&aon_apb_regs REG_AON_APB_AON_IMPL_ID
-					MASK_AON_APB_AON_IMPL_ID>;
-				manufacture_id = <&aon_apb_regs  REG_AON_APB_AON_MFT_ID
-					MASK_AON_APB_AON_MFT_ID>;
-				version_id = <&aon_apb_regs REG_AON_APB_AON_VER_ID
-					MASK_AON_APB_AON_VER_ID>;
-			};
 		};
 
 		mm {
@@ -935,7 +905,6 @@
 				compatible = "unisoc,iommuexle-dcam";
 				reg = <0x60800000 0x2100>,
 				      <0x60802100 0x60>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x40000000>;
 				iova-size = <0x10000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -963,7 +932,6 @@
 				/* sharkle isp need pagetable size */
 				reg = <0x60a00000 0x800>,
 				      <0x60a00800 0x400>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x50000000>;
 				iova-size = <0x10000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -984,7 +952,6 @@
 				compatible = "unisoc,iommuexle-cpp";
 				reg = <0x61000000 0x200>,
 				      <0x61000200 0x60>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x60000000>;
 				iova-size = <0x8000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -1052,10 +1019,6 @@
 				compatible = "sprd,mali-midgard";
 				reg = <0x60000000 0x4000>;
 				gpu-supply = <&vddcore>;
-				gpu_clk_sel = <&gpu_ahb_regs
-					REG_GPU_APB_APB_CLK_CTRL
-					MASK_GPU_APB_CLK_GPU_SEL>;
-
 				top_force_shutdown = <&pmu_apb_regs
 					REG_PMU_APB_PD_GPU_TOP_CFG
 					MASK_PMU_APB_PD_GPU_TOP_FORCE_SHUTDOWN>;
@@ -1111,7 +1074,6 @@
 				compatible = "unisoc,iommuexle-jpg";
 				reg = <0x60b00000 0x100>,
 				      <0x60b00100 0x400>;
-				phys-offset = <0x80000000>;
 				iova-base = <0x70000000>;
 				iova-size = <0x10000000>;
 				reg_name = "mmu_interrupt_reg","mmu_reg";
@@ -1129,39 +1091,6 @@
 			dmc_controller: dmc-controller@300001b4 {
 				compatible = "sprd,pub-dmc-original";
 				reg = <0x300001b4 0x100>;
-			};
-
-			dmc_mpu: dmc-mpu@300e0000 {
-				compatible = "sprd,dmc-mpu-r3p0";
-				reg = <0x300e0000 0x10000>;
-				interrupts = <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>;
-				sprd,channel-num = <8>;
-				sprd,channel-names = "MM", "GPU", "DISP",
-					"A53", "AP/VSP/GSP", "WTLCP/PUBCP",
-					"WCN/AON", "SHARED";
-				sprd,ranges = <0 0>,
-					      <0 0>,
-					      <0 0>,
-					      <0 0>,
-					      <0 0>,
-					      <0 0>,
-					      <0 0>,
-					      <0 0>;
-				sprd,chn-config = <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>,
-						  <DISABLE MON_INSIDE MON_WRITE>;
-				sprd,id-config = <MPUID 0 0>, <MPUID 0 0>,
-						 <MPUID 0 0>, <MPUID 0 0>,
-						 <MPUID 0 0>, <MPUID 0 0>,
-						 <MPUID 0 0>, <MPUID 0 0>;
-				sprd,shared-chn = "MM";
-				sprd,ddr-offset = <0x80000000>;
-				status = "okay";
 			};
 		};
 	};

@@ -25,16 +25,12 @@
 static struct kmem_cache *ino_entry_slab;
 struct kmem_cache *f2fs_inode_entry_slab;
 
-void f2fs_stop_checkpoint(struct f2fs_sb_info *sbi, bool end_io,
-						unsigned char reason)
+void f2fs_stop_checkpoint(struct f2fs_sb_info *sbi, bool end_io)
 {
 	f2fs_build_fault_attr(sbi, 0, 0);
 	set_ckpt_flags(sbi, CP_ERROR_FLAG);
-	if (!end_io) {
+	if (!end_io)
 		f2fs_flush_merged_writes(sbi);
-
-		f2fs_handle_stop(sbi, reason);
-	}
 }
 
 /*
@@ -124,7 +120,7 @@ retry:
 		if (PTR_ERR(page) == -EIO &&
 				++count <= DEFAULT_RETRY_IO_COUNT)
 			goto retry;
-		f2fs_stop_checkpoint(sbi, false, STOP_CP_REASON_META_PAGE);
+		f2fs_stop_checkpoint(sbi, false);
 	}
 	return page;
 }
@@ -154,7 +150,7 @@ static bool __is_bitmap_valid(struct f2fs_sb_info *sbi, block_t blkaddr,
 		f2fs_err(sbi, "Inconsistent error blkaddr:%u, sit bitmap:%d",
 			 blkaddr, exist);
 		set_sbi_flag(sbi, SBI_NEED_FSCK);
-		dump_stack();
+		WARN_ON(1);
 	}
 	return exist;
 }
@@ -192,7 +188,7 @@ bool f2fs_is_valid_blkaddr(struct f2fs_sb_info *sbi,
 			f2fs_warn(sbi, "access invalid blkaddr:%u",
 				  blkaddr);
 			set_sbi_flag(sbi, SBI_NEED_FSCK);
-			dump_stack();
+			WARN_ON(1);
 			return false;
 		} else {
 			return __is_bitmap_valid(sbi, blkaddr, type);
@@ -857,7 +853,6 @@ static struct page *validate_checkpoint(struct f2fs_sb_info *sbi,
 	struct page *cp_page_1 = NULL, *cp_page_2 = NULL;
 	struct f2fs_checkpoint *cp_block = NULL;
 	unsigned long long cur_version = 0, pre_version = 0;
-	unsigned int cp_blocks;
 	int err;
 
 	err = get_checkpoint_version(sbi, cp_addr, &cp_block,
@@ -865,16 +860,15 @@ static struct page *validate_checkpoint(struct f2fs_sb_info *sbi,
 	if (err)
 		return NULL;
 
-	cp_blocks = le32_to_cpu(cp_block->cp_pack_total_block_count);
-
-	if (cp_blocks > sbi->blocks_per_seg || cp_blocks <= F2FS_CP_PACKS) {
+	if (le32_to_cpu(cp_block->cp_pack_total_block_count) >
+					sbi->blocks_per_seg) {
 		f2fs_warn(sbi, "invalid cp_pack_total_block_count:%u",
 			  le32_to_cpu(cp_block->cp_pack_total_block_count));
 		goto invalid_cp;
 	}
 	pre_version = *version;
 
-	cp_addr += cp_blocks - 1;
+	cp_addr += le32_to_cpu(cp_block->cp_pack_total_block_count) - 1;
 	err = get_checkpoint_version(sbi, cp_addr, &cp_block,
 					&cp_page_2, version);
 	if (err)
@@ -1154,8 +1148,7 @@ static bool __need_flush_quota(struct f2fs_sb_info *sbi)
 	if (!is_journalled_quota(sbi))
 		return false;
 
-	if (!down_write_trylock(&sbi->quota_sem))
-		return true;
+	down_write(&sbi->quota_sem);
 	if (is_sbi_flag_set(sbi, SBI_QUOTA_SKIP_FLUSH)) {
 		ret = false;
 	} else if (is_sbi_flag_set(sbi, SBI_QUOTA_NEED_REPAIR)) {
@@ -1867,27 +1860,15 @@ int f2fs_start_ckpt_thread(struct f2fs_sb_info *sbi)
 void f2fs_stop_ckpt_thread(struct f2fs_sb_info *sbi)
 {
 	struct ckpt_req_control *cprc = &sbi->cprc_info;
-	struct task_struct *ckpt_task;
 
-	if (!cprc->f2fs_issue_ckpt)
-		return;
+	if (cprc->f2fs_issue_ckpt) {
+		struct task_struct *ckpt_task = cprc->f2fs_issue_ckpt;
 
-	ckpt_task = cprc->f2fs_issue_ckpt;
-	cprc->f2fs_issue_ckpt = NULL;
-	kthread_stop(ckpt_task);
+		cprc->f2fs_issue_ckpt = NULL;
+		kthread_stop(ckpt_task);
 
-	f2fs_flush_ckpt_thread(sbi);
-}
-
-void f2fs_flush_ckpt_thread(struct f2fs_sb_info *sbi)
-{
-	struct ckpt_req_control *cprc = &sbi->cprc_info;
-
-	flush_remained_ckpt_reqs(sbi, NULL);
-
-	/* Let's wait for the previous dispatched checkpoint. */
-	while (atomic_read(&cprc->queued_ckpt))
-		io_schedule_timeout(DEFAULT_IO_TIMEOUT);
+		flush_remained_ckpt_reqs(sbi, NULL);
+	}
 }
 
 void f2fs_init_ckpt_req_control(struct f2fs_sb_info *sbi)

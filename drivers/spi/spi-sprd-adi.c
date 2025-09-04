@@ -16,9 +16,6 @@
 #include <linux/reboot.h>
 #include <linux/spi/spi.h>
 #include <linux/sizes.h>
-#if IS_ENABLED(CONFIG_SPRD_SIPC)
-#include <linux/sipc.h>
-#endif
 
 /* Registers definitions for ADI controller */
 #define REG_ADI_CTRL0			0x4
@@ -124,8 +121,6 @@
 
 /* Definition of PMIC reset status register */
 #define HWRST_STATUS_SECURITY		0x02
-#define HWRST_STATUS_SECBOOT		0x03
-#define HWRST_STATUS_BOOTLOADER_PANIC	0x10
 #define HWRST_STATUS_RECOVERY		0x20
 #define HWRST_STATUS_NORMAL		0x40
 #define HWRST_STATUS_ALARM		0x50
@@ -137,7 +132,6 @@
 #define HWRST_STATUS_AUTODLOADER	0xa0
 #define HWRST_STATUS_IQMODE		0xb0
 #define HWRST_STATUS_SPRDISK		0xc0
-#define HWRST_STATUS_SILENT             0xd0
 #define HWRST_STATUS_FACTORYTEST	0xe0
 #define HWRST_STATUS_WATCHDOG		0xf0
 
@@ -145,9 +139,6 @@
 #define WDG_LOAD_VAL			((50 * 32768) / 1000)
 #define WDG_LOAD_MASK			GENMASK(15, 0)
 #define WDG_UNLOCK_KEY			0xe551
-
-/*Adi single soft multi hard*/
-#define SPRD_ADI_MAGIC_LEN_MAX          5
 
 struct sprd_adi_variant_data {
 	int (*read_check)(u32 val, u32 reg_paddr);
@@ -453,18 +444,14 @@ static int sprd_adi_restart_handler(struct notifier_block *this,
 		reboot_mode = HWRST_STATUS_SPRDISK;
 	else if (!strncmp(cmd, "tospanic", 8))
 		reboot_mode = HWRST_STATUS_SECURITY;
-	else if (!strncmp(cmd, "dm-verity", 9))
-		reboot_mode = HWRST_STATUS_SECBOOT;
 	else if (!strncmp(cmd, "factorytest", 11))
 		reboot_mode = HWRST_STATUS_FACTORYTEST;
-	else if (!strncmp(cmd, "silent", 6))
-		reboot_mode = HWRST_STATUS_SILENT;
 	else
 		reboot_mode = HWRST_STATUS_NORMAL;
 
 	/* Record the reboot mode */
 	sprd_adi_read(sadi, sadi->slave_pbase + sadi->data->rst_sts, &val);
-	val &= ~0xFF;
+	val &= ~HWRST_STATUS_WATCHDOG;
 	val |= reboot_mode;
 	sprd_adi_write(sadi, sadi->slave_pbase + sadi->data->rst_sts, val);
 
@@ -484,41 +471,12 @@ static int sprd_adi_restart_handler(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
-static void sprd_adi_power_ssmh(char *adi_supply)
-{
-	struct device_node *cmdline_node;
-	const char *cmd_line, *adi_type;
-	char adi_value[SPRD_ADI_MAGIC_LEN_MAX] = "";
-	int ret;
-
-	cmdline_node = of_find_node_by_path("/chosen");
-	ret = of_property_read_string(cmdline_node, "bootargs", &cmd_line);
-
-	if (ret) {
-		pr_err("can't parse bootargs property\n");
-		return;
-	}
-
-	adi_type = strstr(cmd_line, "power.from.extern=");
-	if (!adi_type) {
-		pr_err("can't find power.from.extern\n");
-		return;
-	}
-
-	sscanf(adi_type, "power.from.extern=%s\n", adi_value);
-	if (!adi_value[0])
-		return;
-
-	strcat(adi_supply, adi_value);
-}
-
 static void sprd_adi_hw_init(struct sprd_adi *sadi)
 {
 	struct device_node *np = sadi->dev->of_node;
 	int i, size, chn_cnt;
 	const __be32 *list;
 	u32 tmp;
-	char adi_supply[25] = "sprd,hw-channels";
 
 	/* Set all channels as default priority */
 	writel_relaxed(0, sadi->base + REG_ADI_CHN_PRIL);
@@ -530,10 +488,7 @@ static void sprd_adi_hw_init(struct sprd_adi *sadi)
 	writel_relaxed(tmp, sadi->base + REG_ADI_GSSI_CFG0);
 
 	/* Set hardware channels setting */
-	sprd_adi_power_ssmh(adi_supply);
-	dev_info(sadi->dev, "adi supply is %s\n", adi_supply);
-
-	list = of_get_property(np, adi_supply, &size);
+	list = of_get_property(np, "sprd,hw-channels", &size);
 	if (!list || !size) {
 		dev_info(sadi->dev, "no hw channels setting in node\n");
 		return;

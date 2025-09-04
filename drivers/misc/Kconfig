@@ -507,6 +507,8 @@ config SPRD_SOCID
 	help
 	  provoid a driver to get soc id.
 
+source "drivers/misc/aw9610x/Kconfig"
+source "drivers/misc/hx9031a/Kconfig"
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
@@ -522,5 +524,4 @@ source "drivers/misc/cxl/Kconfig"
 source "drivers/misc/ocxl/Kconfig"
 source "drivers/misc/cardreader/Kconfig"
 source "drivers/misc/habanalabs/Kconfig"
-source "drivers/misc/vibrator/Kconfig"
 endmenu

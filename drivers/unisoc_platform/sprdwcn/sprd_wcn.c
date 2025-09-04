@@ -37,8 +37,6 @@
 #include <misc/wcn_bus.h>
 #include "sprd_wcn.h"
 #include "./sipc/wcn_sipc.h"
-#include "pcie.h"
-#include "../platform/wcn_boot.h"
 
 #ifdef CONFIG_PM_SLEEP
 static int wcn_resume(struct device *dev)
@@ -67,13 +65,8 @@ static int wcn_suspend(struct device *dev)
 	int chn;
 	int ret;
 	struct sipc_chn_info *sipc_chn;
-	struct wcn_match_data *g_match_config = get_wcn_match_config();
 
 	WCN_INFO("%s enter\n", __func__);
-
-	if (g_match_config && g_match_config->unisoc_wcn_m3lite && is_ums9620)
-		marlin_avdd18_dcxo_enable(false);
-
 	for (chn = 0; chn < SIPC_CHN_NUM; chn++) {
 		sipc_chn = wcn_sipc_channel_get(chn);
 		if ((sipc_chn != NULL) && (sipc_chn->ops != NULL) &&
@@ -179,10 +172,8 @@ static const struct of_device_id wcn_global_match_table[] = {
 static struct wcn_match_data *g_match_data;
 struct wcn_match_data *get_wcn_match_config(void)
 {
-	if (!g_match_data) {
-		pr_err("wcn match data null \n");
+	if (!g_match_data)
 		dump_stack();
-	}
 
 	return g_match_data;
 }
@@ -256,13 +247,10 @@ static int sprd_wcn_probe(struct platform_device *pdev)
 	}
 
 	g_match_data = p_match_data;
-	if (p_match_data->unisoc_wcn_integrated) {
-		pr_info("wcn_intergrated \n");
+	if (p_match_data->unisoc_wcn_integrated)
 		return wcn_probe(pdev);
-	} else {
-		pr_info("wcn out probe \n");
+	else
 		return marlin_probe(pdev);
-	}
 }
 
 static int sprd_wcn_remove(struct platform_device *pdev)
@@ -327,9 +315,6 @@ static struct platform_driver sprd_wcn_driver = {
 static int __init sprd_wcn_init(void)
 {
 	pr_info("%s entry!\n", __func__);
-#ifdef BUILD_WCN_PCIE
-	sprd_pcie_init();
-#endif
 	return platform_driver_register(&sprd_wcn_driver);
 }
 

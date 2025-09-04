@@ -17,7 +17,6 @@
 #include "wcn_glb.h"
 #include "../sdio/sdiohal.h"
 #include "slp_dbg.h"
-#include "../platform/wcn_boot.h"
 
 struct sdio_int_t sdio_int = {0};
 
@@ -45,7 +44,6 @@ void sdio_wait_pub_int_done(void)
 	struct slp_mgr_t *slp_mgr;
 	int wait_cnt = 0;
 
-	struct wcn_match_data *g_match_config = get_wcn_match_config();
 	slp_mgr = slp_get_info();
 
 	if (sdio_power_notify) {
@@ -65,8 +63,6 @@ void sdio_wait_pub_int_done(void)
 			WCN_INFO("wait pub_int_done:%d\n", wait_cnt);
 			usleep_range(1500, 3000);
 		}
-		if (g_match_config && g_match_config->unisoc_wcn_m3lite && is_ums9620)
-			marlin_avdd18_dcxo_enable(false);
 		WCN_INFO("flag_pub_int_done-%d\n",
 			 atomic_read(&flag_pub_int_done));
 	} else
@@ -315,7 +311,6 @@ int sdio_pub_int_deinit(void)
 	sdio_power_notify = false;
 	disable_irq(sdio_int.pub_int_num);
 	free_irq(sdio_int.pub_int_num, NULL);
-	wakeup_source_remove(sdio_int.pub_int_wakelock);
 	wakeup_source_destroy(sdio_int.pub_int_wakelock);
 	kfree(sdio_int.pub_int_wakelock);
 

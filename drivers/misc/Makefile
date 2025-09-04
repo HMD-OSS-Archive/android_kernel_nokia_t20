@@ -62,5 +62,5 @@ obj-$(CONFIG_SPRD_UID)		+= misc_sprd_uid.o
 misc_sprd_uid-y		:= sprd_uid.o
 obj-$(CONFIG_HISI_HIKEY_USB)	+= hisi_hikey_usb.o
 obj-$(CONFIG_SPRD_SOCID)	+= sprd_soc_id.o
-obj-$(CONFIG_LEDS_SC27XX_VIBRA)	+= vibrator/
-
+obj-$(CONFIG_AW9610X_SAR) += aw9610x/
+obj-$(CONFIG_TYHX_HX9031A) += hx9031a/

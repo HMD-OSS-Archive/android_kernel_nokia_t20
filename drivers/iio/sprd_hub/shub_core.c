@@ -1114,11 +1114,8 @@ static ssize_t enable_store(struct device *dev,
 		 "handle = %d, enabled = %d\n", handle, enabled);
 	subtype = (enabled == 0) ? SHUB_SET_DISABLE_SUBTYPE :
 		SHUB_SET_ENABLE_SUBTYPE;
-	if (shub_send_command(sensor, handle, subtype, NULL, 0) < 0) {
-		dev_err(&sensor->sensor_pdev->dev, "%s Fail\n", __func__);
-		return -EINVAL;
-	}
-
+	if (shub_send_command(sensor, handle, subtype, NULL, 0) < 0)
+		dev_err(&sensor->sensor_pdev->dev, "Write SetEn/Disable fail\n");
 	if (handle < MAX_SENSOR_HANDLE && handle > 0)
 		sensor_status[handle] = enabled;
 
@@ -1152,10 +1149,8 @@ static ssize_t batch_store(struct device *dev, struct device_attribute *attr,
 
 	if (shub_send_command(sensor, batch_cmd.handle,
 			      SHUB_SET_BATCH_SUBTYPE,
-			      (char *)&batch_cmd.report_rate, 12) < 0) {
+			      (char *)&batch_cmd.report_rate, 12) < 0)
 		dev_err(&sensor->sensor_pdev->dev, "%s Fail\n", __func__);
-		return -EINVAL;
-	}
 
 	return count;
 }
@@ -1185,10 +1180,8 @@ static ssize_t flush_store(struct device *dev, struct device_attribute *attr,
 #endif
 	if (shub_send_command(sensor, handle,
 			      SHUB_SET_FLUSH_SUBTYPE,
-			      NULL, 0x00) < 0) {
-		dev_err(&sensor->sensor_pdev->dev, "%s Fail\n", __func__);
-		return -EINVAL;
-	}
+			      NULL, 0x00) < 0)
+		dev_err(&sensor->sensor_pdev->dev, " Fail\n");
 
 	__pm_wakeup_event(sensorhub_wake_lock, jiffies_to_msecs(200));
 
@@ -1329,7 +1322,8 @@ static ssize_t light_sensor_calibrator_show(struct device *dev,
 		 "%s light_calibration status: %d\n", __func__, als_calib_result);
 	if (als_calib_result == CALIB_STATUS_PASS &&
 	    sensor->cali_store.type == SENSOR_TYPE_LIGHT) {
-		memcpy(buf, sensor->cali_store.udata, CALIBRATION_DATA_LENGTH);
+		//memcpy(buf, sensor->cali_store.udata, CALIBRATION_DATA_LENGTH);
+		sprintf(buf, "%d\n", als_calib_result);
 	}
 
 	return als_calib_result < 0 ? -EINVAL : CALIBRATION_DATA_LENGTH;

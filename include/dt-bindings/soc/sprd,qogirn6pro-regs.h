@@ -289,11 +289,6 @@
 #define REG_AON_APB_PUB_CFG_EARLY_RESP_CTRL                 0x0D3C
 #define REG_AON_APB_RESERVE_H                               0x0FE8
 #define REG_AON_APB_RESERVE_L                               0x0FEC
-#define REG_GPU_APB_RST                                     0x0000
-#define REG_GPU_APB_GPU_PDC_CONTROL_STACK0                  0x002C
-#define REG_GPU_APB_GPU_PDC_CONTROL_STACK1                  0x0030
-#define REG_GPU_APB_GPU_PDC_CONTROL_STACK2                  0x0034
-#define REG_GPU_APB_GPU_PDC_CONTROL_STACK3                  0x0038
 #define REG_PMU_APB_AON_MEM_CTRL                            0x0000
 #define REG_PMU_APB_MEM_AUTO_SD_CFG                         0x0004
 #define REG_PMU_APB_MEM_AUTO_SLP_CFG                        0x0010
@@ -884,7 +879,6 @@
 #define REG_MM_AHB_DCAM_BLK_SOFT_RST                        0x00C8
 #define REG_MM_AHB_ISP_BLK_SOFT_RST                         0x00CC
 #define REG_MM_AHB_SYS_SOFT_RST                             0x00D0
-#define REG_MM_DVFS_AHB_MM_SW_DVFS_CTRL                     0x0038
 #define REG_DISPC1_GLB_APB_APB_EB                           0x0000
 #define REG_DISPC1_GLB_APB_APB_RST                          0x0004
 #define REG_DISPC1_GLB_APB_DISPC1_FORCE_OFF                 0x0010
@@ -933,7 +927,7 @@
 #define REG_IPA_GLB_APB_IPA_IP_RST                          0x0000
 #define REG_IPA_GLB_APB_IPA_IP_EB                           0x0004
 #define REG_IPA_GLB_APB_IPA_IP_LPC_CTRL                     0x0008
-#define REG_DPU_VSP_SYS_RST                                 0x00A0
+#define REG_DPU_VSP_APB_RST                                 0x0004
 #define REG_DPU_VSP_APB_MISC_CKG_EB                         0x001C
 #define REG_PMU_APB_RF_ANALOG_PHY_PD_CFG                    0x009C
 #define REG_TOP_DVFS_APB_SUBSYS_SW_DVFS_EN_CFG              0x0D84

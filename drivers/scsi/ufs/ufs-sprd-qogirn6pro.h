@@ -13,7 +13,6 @@
 
 #ifndef _UFS_SPRD_H_
 #define _UFS_SPRD_H_
-#include "ufshpb-sprd.h"
 
 struct syscon_ufs {
 	struct regmap *regmap;
@@ -23,7 +22,6 @@ struct syscon_ufs {
 
 struct ufs_sprd_host {
 	struct ufs_hba *hba;
-	struct scsi_device *sdev_ufs_rpmb;
 	void __iomem *ufshci_reg;
 	void __iomem *ufsutp_reg;
 	void __iomem *unipro_reg;
@@ -31,26 +29,18 @@ struct ufs_sprd_host {
 	void __iomem *mphy_reg;
 	void __iomem *rus;
 	struct regulator *vdd_mphy;
-	struct syscon_ufs phy_sram_ext_ld_done;
-	struct syscon_ufs phy_sram_bypass;
+	struct syscon_ufs ap_ahb_ufs_rst;
+	struct syscon_ufs aon_apb_ufs_rst;
 	struct syscon_ufs phy_sram_init_done;
 	struct syscon_ufs aon_apb_ufs_clk_en;
 	struct syscon_ufs ufsdev_refclk_en;
 	struct syscon_ufs usb31pllv_ref2mphy_en;
 
 	struct clk *hclk_source;
-	struct clk *rco_100M;
 	struct clk *hclk;
-	struct reset_control *ap_ahb_ufs_rst;
-	struct reset_control *aon_apb_ufs_rst;
 	uint32_t ufs_lane_calib_data0;
 	uint32_t ufs_lane_calib_data1;
-	bool wlun_dev_add;
-	void __iomem *syssel_reg;
 };
-
-/*ufs hclk register*/
-#define REG_HCLKDIV	0xFC
 
 /* Set auto h8 ilde time to 10ms */
 #define AUTO_H8_IDLE_TIME_10MS 0x1001
@@ -123,8 +113,5 @@ struct ufs_sprd_host {
 #define VS_MPHYDISABLE		0xD0C1
 
 #define UFSHCI_VERSION_30	0x00000300 /* 3.0 */
-
-/* Define debug bus register */
-#define REG_DEBUG_BUS_SYSSEL	0x7800A100
 
 #endif/* _UFS_SPRD_H_ */

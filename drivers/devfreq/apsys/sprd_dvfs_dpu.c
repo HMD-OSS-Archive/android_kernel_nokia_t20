@@ -50,11 +50,6 @@ static ssize_t dpu_dvfs_enable_store(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	int ret, user_en;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	ret = sscanf(buf, "%d\n", &user_en);
 	if (ret == 0)
 		return -EINVAL;
@@ -90,11 +85,6 @@ static ssize_t set_hw_dfs_store(struct device *dev,
 	u32 dfs_en;
 	int ret;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	ret = sscanf(buf, "%d\n", &dfs_en);
 	if (ret == 0)
 		return -EINVAL;
@@ -116,11 +106,6 @@ static ssize_t get_work_freq_show(struct device *dev,
 	u32 work_freq;
 	int ret;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (dpu->dvfs_ops && dpu->dvfs_ops->get_work_freq) {
 		work_freq = dpu->dvfs_ops->get_work_freq(dpu);
 		ret = sprintf(buf, "%d\n", work_freq);
@@ -138,11 +123,6 @@ static ssize_t set_work_freq_store(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 
@@ -171,11 +151,6 @@ static ssize_t get_idle_freq_show(struct device *dev,
 	u32 idle_freq;
 	int ret;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (dpu->dvfs_ops && dpu->dvfs_ops->get_idle_freq) {
 		idle_freq = dpu->dvfs_ops->get_idle_freq(dpu);
 		ret = sprintf(buf, "%d\n", idle_freq);
@@ -193,11 +168,6 @@ static ssize_t set_idle_freq_store(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 
@@ -225,11 +195,6 @@ static ssize_t get_work_index_show(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	int work_index, ret;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (dpu->dvfs_ops && dpu->dvfs_ops->get_work_index) {
 		work_index = dpu->dvfs_ops->get_work_index(dpu);
 		ret = sprintf(buf, "%d\n", work_index);
@@ -246,11 +211,6 @@ static ssize_t set_work_index_store(struct device *dev,
 	struct devfreq *devfreq = to_devfreq(dev);
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	int work_index, ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%d\n", &work_index);
 	if (ret == 0)
@@ -271,11 +231,6 @@ static ssize_t get_idle_index_show(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	int idle_index, ret;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (dpu->dvfs_ops && dpu->dvfs_ops->get_idle_index) {
 		idle_index = dpu->dvfs_ops->get_idle_index(dpu);
 		ret = sprintf(buf, "%d\n", idle_index);
@@ -292,11 +247,6 @@ static ssize_t set_idle_index_store(struct device *dev,
 	struct devfreq *devfreq = to_devfreq(dev);
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	int idle_index, ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%d\n", &idle_index);
 	if (ret == 0)
@@ -317,11 +267,6 @@ static ssize_t get_dvfs_status_show(struct device *dev,
 	struct dpu_dvfs *dpu = dev_get_drvdata(devfreq->dev.parent);
 	struct ip_dvfs_status dvfs_status;
 	ssize_t len = 0;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get dpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	if (dpu->dvfs_ops && dpu->dvfs_ops->get_dvfs_status)
 		dpu->dvfs_ops->get_dvfs_status(dpu, &dvfs_status);
@@ -412,7 +357,7 @@ static int dpu_dvfs_notify_callback(struct notifier_block *nb,
 	struct dpu_dvfs *dpu = container_of(nb, struct dpu_dvfs, dpu_dvfs_nb);
 	u32 freq = *(int *)data;
 
-	if (!dpu->dvfs_enable)
+	if (!dpu->dvfs_enable || dpu->work_freq == freq)
 		return NOTIFY_DONE;
 
 	if (dpu->dvfs_ops && dpu->dvfs_ops->set_work_freq) {
@@ -711,9 +656,11 @@ static const struct sprd_dpu_dvfs_ops qogirl6_dpu_dvfs = {
 	.core = &qogirl6_dpu_dvfs_ops,
 };
 
+/*
 static const struct sprd_dpu_dvfs_ops qogirn6pro_dpu_dvfs = {
 	.core = &qogirn6pro_dpu_dvfs_ops,
 };
+*/
 
 static const struct sprd_dpu_dvfs_ops roc1_dpu_dvfs = {
 	.core = &roc1_dpu_dvfs_ops,
@@ -728,8 +675,6 @@ static const struct of_device_id dpu_dvfs_of_match[] = {
 	  .data = &sharkl5pro_dpu_dvfs},
 	{ .compatible = "sprd,hwdvfs-dpu-qogirl6",
 	  .data = &qogirl6_dpu_dvfs},
-	{ .compatible = "sprd,hwdvfs-dpu-qogirn6pro",
-	  .data = &qogirn6pro_dpu_dvfs},
 	{ }
 };
 

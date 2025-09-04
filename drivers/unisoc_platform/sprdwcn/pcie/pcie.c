@@ -9,6 +9,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#include <linux/pci-aspm.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
 #include <linux/mod_devicetable.h>
@@ -32,8 +33,6 @@
 #include "wcn_op.h"
 #include "wcn_procfs.h"
 #include "wcn_txrx.h"
-#include "sprd_wcn.h"
-#include "../../../pci/pci.h"
 
 #define WAIT_AT_DONE_MAX_CNT 5
 
@@ -136,11 +135,11 @@ int wcn_get_tx_complete_status(void)
 	return atomic_read(&priv->tx_complete);
 }
 
-void wcn_set_tx_complete_status(int flag)
+int wcn_set_tx_complete_status(int flag)
 {
 	struct wcn_pcie_info *priv = get_wcn_device_info();
 
-	atomic_set(&priv->tx_complete, flag);
+	return atomic_set(&priv->tx_complete, flag);
 }
 
 static void wcn_bus_change_state(struct wcn_pcie_info *bus,
@@ -149,7 +148,7 @@ static void wcn_bus_change_state(struct wcn_pcie_info *bus,
 	bus->pci_status = state;
 }
 
-static irqreturn_t sprd_pcie_msi_irq(int irq, void *arg)
+static int sprd_pcie_msi_irq(int irq, void *arg)
 {
 	struct wcn_pcie_info *priv = arg;
 
@@ -163,7 +162,7 @@ static irqreturn_t sprd_pcie_msi_irq(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t sprd_pcie_legacy_irq(int irq, void *arg)
+static int sprd_pcie_legacy_irq(int irq, void *arg)
 {
 	legacy_irq_handle(irq);
 
@@ -625,7 +624,6 @@ int wcn_pcie_get_bus_status(void)
 }
 
 #ifdef CONFIG_PCIEASPM
-#if 0
 static int wcn_pcie_wait_for_link(struct pci_dev *pdev)
 {
 	int retries;
@@ -646,23 +644,18 @@ static int wcn_pcie_wait_for_link(struct pci_dev *pdev)
 
 	return -ETIMEDOUT;
 }
-#endif
 
 enum wcn_bus_pm_state sprd_pcie_get_aspm_policy(void)
 {
-#if 0
 	int state;
 	struct wcn_pcie_info *priv = get_wcn_device_info();
 
 	sprd_pcie_aspm_get_policy(priv->dev->bus->self, &state);
 	return	state;
-#endif
-	return 0;
 }
 
 int sprd_pcie_set_aspm_policy(enum sub_sys subsys, enum wcn_bus_pm_state state)
 {
-#if 0
 	int ret;
 	struct wcn_pcie_info *priv = get_wcn_device_info();
 
@@ -699,8 +692,6 @@ int sprd_pcie_set_aspm_policy(enum sub_sys subsys, enum wcn_bus_pm_state state)
 	}
 	mutex_unlock(&priv->pm_lock);
 	return	ret;
-#endif
-	return 0;
 }
 #endif
 
@@ -733,29 +724,6 @@ static struct platform_device *to_pdev_from_ep_node(struct device_node *ep_node)
 	return of_find_device_by_node(pdev_node);
 }
 
-/* when pcie is disconnected,reset it */
-void sprd_pcie_reset(void *wcn_dev)
-{
-	struct wcn_pcie_info *priv = get_wcn_device_info();
-	struct platform_device *pdev;
-	struct marlin_device *marlin_dev = wcn_dev;
-
-	pdev = to_pdev_from_ep_node(marlin_dev->np);
-	if (!pdev) {
-		WCN_ERR("can't get pcie rc node\n");
-		return;
-	}
-	WCN_INFO("%s enter\n", __func__);
-	/* check pcie link status, reset when disconnected */
-	if (pci_dev_is_disconnected(priv->dev)) {
-		WCN_ERR("pcie_dev is disconnected,reset\n");
-		sprd_pcie_unconfigure_device(pdev);
-		sprd_pcie_configure_device(pdev);
-		return;
-	}
-	WCN_INFO("EP link status ok,do not reset\n");
-}
-
 /* called by chip_power_on */
 int sprd_pcie_scan_card(void *wcn_dev)
 {
@@ -772,10 +740,9 @@ int sprd_pcie_scan_card(void *wcn_dev)
 		return 0;
 	}
 	dev = &pdev->dev;
-	priv->rc_pd = pdev;
 	WCN_INFO("%s: rc node name: %s\n", __func__, dev->of_node->name);
 
-	if (priv->dev)
+	if (priv->dev && priv->dev->is_added)
 		WCN_ERR("%s: card not NULL\n", __func__);
 
 	sprd_pcie_configure_device(pdev);
@@ -854,20 +821,19 @@ void sprd_pcie_remove_card(void *wcn_dev)
 
 	edma_del_tx_timer();
 
-	/* rx: kill tasklet */
-	if (edma_hw_pause() < 0)
-		WCN_ERR("edma_hw_pause fail\n");
-	usleep_range(100,200);
 	/* rx: disable txrx irq */
 	if (disable_pcie_irq() < 0) {
 		WCN_ERR(" irq have free\n");
 		return;
 	}
 
+	/* rx: kill tasklet */
 	edma_tasklet_deinit();
 
 	wcn_bus_change_state(priv, WCN_BUS_DOWN);
 
+	if (edma_hw_pause() < 0)
+		WCN_ERR("edma_hw_pause fail\n");
 	init_completion(&priv->remove_done);
 	/* for proc_fs_exit, loopcheck/at/assert */
 	mdbg_fs_channel_destroy();
@@ -885,19 +851,17 @@ void sprd_pcie_remove_card(void *wcn_dev)
 	WCN_INFO("%s: rc node name: %s\n",
 			__func__, dev->of_node->name);
 
-	if (!priv->dev)
+	if (!priv->dev || (priv->dev && !priv->dev->is_added))
 		WCN_ERR("%s: card exist!\n", __func__);
 
 	sprd_pcie_unconfigure_device(pdev);
-	priv->dev = NULL;
+
 	if (wait_for_completion_timeout(&priv->remove_done,
 					msecs_to_jiffies(5000)) == 0)
 		WCN_ERR("remove card time out\n");
 	else
 		WCN_INFO("remove card end\n");
 }
-
-extern void marlin_scan_finish(void);
 
 static int sprd_pcie_probe(struct pci_dev *pdev,
 			   const struct pci_device_id *pci_id)
@@ -1056,7 +1020,6 @@ static int sprd_pcie_probe(struct pci_dev *pdev,
 
 	wcn_bus_change_state(priv, WCN_BUS_UP);
 	atomic_set(&priv->xmit_cnt, 0x0);
-	atomic_set(&priv->is_suspending, 0);
 	complete(&priv->scan_done);
 
 	edma_init(priv);
@@ -1075,17 +1038,9 @@ static int sprd_pcie_probe(struct pci_dev *pdev,
 	pci_read_config_dword(pdev, 0x072c, &val32);
 	WCN_INFO("EP link status 72c=0x%x\n", val32);
 	/* calling rescan callback to inform download */
-	//if (scan_card_notify != NULL)
-	//	scan_card_notify();
-	if (priv->msi_en == 1) {
-		pci_read_config_dword(pdev->bus->self, 0x0828, &val32);
-		if (priv->irq_num == 32 && val32 != 0xffffffff) {
-			WCN_WARN("irq int_en status 828=0x%x\n", val32);
-			pci_write_config_dword(pdev->bus->self, 0x0828, MSI_IRQ_INT_EN_ALL);
-		}
-		WCN_INFO("irq int_en status 828=0x%x\n", val32);
-	}
-	marlin_scan_finish();
+	if (scan_card_notify != NULL)
+		scan_card_notify();
+
 	WCN_INFO("%s ok\n", __func__);
 	return 0;
 
@@ -1133,7 +1088,6 @@ static int sprd_ep_suspend(struct device *dev)
 	struct wcn_pcie_info *priv = pci_get_drvdata(pdev);
 
 	wcn_bus_change_state(priv, WCN_BUS_DOWN);
-	atomic_set(&priv->is_suspending, 1);
 
 	for (chn = 0; chn < 16; chn++) {
 		ops = mchn_ops(chn);
@@ -1142,17 +1096,13 @@ static int sprd_ep_suspend(struct device *dev)
 			if (ret != 0) {
 				WCN_INFO("[%s] chn:%d suspend fail\n",
 					 __func__, chn);
-				atomic_set(&priv->is_suspending, 0);
-				wcn_bus_change_state(priv, WCN_BUS_UP);
 				return ret;
 			}
 		}
 	}
 
-	if (edma_hw_pause() < 0) {
-		atomic_set(&priv->is_suspending, 0);
+	if (edma_hw_pause() < 0)
 		return -1;
-	}
 
 	WCN_INFO("%s[+]\n", __func__);
 
@@ -1199,7 +1149,6 @@ static int sprd_ep_resume(struct device *dev)
 	edma_hw_restore();
 
 	wcn_bus_change_state(priv, WCN_BUS_UP);
-	atomic_set(&priv->is_suspending, 0);
 	for (chn = 0; chn < 16; chn++) {
 		ops = mchn_ops(chn);
 		if ((ops != NULL) && (ops->power_notify != NULL)) {
@@ -1207,12 +1156,10 @@ static int sprd_ep_resume(struct device *dev)
 			if (ret != 0) {
 				WCN_INFO("[%s] chn:%d resume fail\n",
 					 __func__, chn);
-				wcn_bus_change_state(priv, WCN_BUS_DOWN);
 				return ret;
 			}
 		}
 	}
-	WCN_INFO("%s[-]\n", __func__);
 	return 0;
 }
 

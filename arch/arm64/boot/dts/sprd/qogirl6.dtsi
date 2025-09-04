@@ -6,7 +6,6 @@
  */
 
 #include <dt-bindings/clock/sprd,ums9230-clk.h>
-#include <dt-bindings/reset/sprd,ums9230-reset.h>
 #include <dt-bindings/soc/sprd,qogirl6-regs.h>
 #include <dt-bindings/soc/sprd,qogirl6-mask.h>
 #include <dt-bindings/debug/busmonitor/busmonitor.h>
@@ -58,9 +57,11 @@
 				reg = <0 0x200a0000 0 0x100>;
 				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x20010024>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART0_EB>,
-					<&ap_clk CLK_AP_UART0>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART0_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -70,9 +71,11 @@
 				reg = <0 0x200b0000 0 0x100>;
 				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x20010028>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART1_EB>,
-					<&ap_clk CLK_AP_UART1>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART1_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -82,9 +85,11 @@
 				reg = <0 0x200c0000 0 0x100>;
 				interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x2001002c>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART2_EB>,
-					<&ap_clk CLK_AP_UART2>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART2_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -96,8 +101,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C0_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C0_SOFT_RST>;
 			};
 
 			i2c1: i2c@0x200e0000 {
@@ -108,8 +114,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C1_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C1_SOFT_RST>;
 			};
 
 			i2c2: i2c@0x200f0000 {
@@ -120,8 +127,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C2_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C2_SOFT_RST>;
 			};
 
 			i2c3: i2c@0x20100000 {
@@ -132,8 +140,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C3_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C3_SOFT_RST>;
 			};
 
 			i2c4: i2c@0x20110000 {
@@ -144,8 +153,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C4_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C4_SOFT_RST>;
 			};
 
 			i2s0: i2s@0x20160000 {
@@ -168,8 +178,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C5_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C5_SOFT_RST>;
 			};
 
 			i2c6: i2c@0x20220000 {
@@ -180,8 +191,9 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				status = "disabled";
-				reset-names = "i2c_rst";
-				resets = <&apapb_gate RESET_AP_APB_I2C6_SOFT_RST>;
+				syscon-names = "i2c_rst";
+				syscons =
+					<&ap_apb_regs REG_AP_APB_APB_RST MASK_AP_APB_I2C6_SOFT_RST>;
 			};
 
 			spi0: spi@20120000{
@@ -299,9 +311,6 @@
 					 <&pll1 CLK_TWPLL_256M>,
 					 <&ap_clk CLK_UFS_HCK>,
 					 <&pll1 CLK_TWPLL_256M>;
-				reset-names = "ufs_rst", "ufs_glb_rst";
-				resets = <&apapb_gate RESET_AP_APB_UFS_REG_SOFT_RST>,
-					 <&apapb_gate RESET_AP_APB_UFS_GLB_RST>;
 				freq-table-hz = <0 0>,
 						<0 0>,
 						<0 0>,
@@ -323,6 +332,9 @@
 				ap_ahb_ufs_clk = <&ap_ahb_regs
 						  REG_AP_AHB_UFS_CLK_CTRL
 						  MASK_AP_AHB_CG_CFGCLK_SW>;
+				ap_apb_ufs_rst = <&ap_apb_regs
+						  REG_AP_APB_APB_RST
+						  MASK_AP_APB_UFS_REG_SOFT_RST>;
 				ap_apb_ufs_en = <&ap_apb_regs
 						 REG_AP_APB_APB_EB1
 						 MASK_AP_APB_UFS_EB>;
@@ -350,6 +362,8 @@
 						REG_AP_AHB_UFS_CONTROLLER MASK_AP_AHB_IES_EN_MASK>;
 				ahb_ufs_cg_pclkreq = <&ap_ahb_regs
 						REG_AP_AHB_UFS_CLK_CTRL MASK_AP_AHB_CG_PCLKREQ_SW>;
+				ap_apb_ufs_glb_rst = <&ap_apb_regs
+						REG_AP_APB_APB_EB MASK_AP_APB_APB_REG_EB>;
 				interrupts = <GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH>;
 				status = "okay";
 			};
@@ -358,7 +372,7 @@
 		ap_ahb_regs: syscon@20400000 {
 			compatible = "sprd,ums9230-glbregs", "syscon";
 			#syscon-cells = <2>;
-			reg = <0 0x20400000 0 0x6000>;
+			reg = <0 0x20400000 0 0x4000>;
 		};
 
 		vsp_pd: vsp-power-domain {
@@ -722,14 +736,6 @@
 					<&mm_gate CLK_MM_ISP_EB>,
 					<&mm_clk CLK_CPP>,
 					<&pll1 CLK_TWPLL_384M>;
-				cpp_ahb_reset = <&mm_ahb_regs REG_MM_AHB_AHB_RST
-						MASK_MM_AHB_CPP_SOFT_RST>;
-				cpp_path0_reset = <&mm_ahb_regs REG_MM_AHB_AHB_RST
-						MASK_MM_AHB_CPP_PATH0_SOFT_RST>;
-				cpp_path1_reset = <&mm_ahb_regs REG_MM_AHB_AHB_RST
-						MASK_MM_AHB_CPP_PATH1_SOFT_RST>;
-				cpp_dma_soft_set = <&mm_ahb_regs REG_MM_AHB_AHB_RST
-						MASK_MM_AHB_CPP_DMA_SOFT_RST>;
 				sprd,cam-ahb-syscon = <&mm_ahb_regs>;
 				iommus = <&iommu_cpp>;
 				cpp_qos = <&cpp_qos>;
@@ -759,15 +765,6 @@
 				top-force-shutdown = <&pmu_apb_regs
 					REG_PMU_APB_PD_GPU_TOP_CFG_0
 					MASK_PMU_APB_PD_GPU_TOP_FORCE_SHUTDOWN>;
-				gpu_core0_state = <&pmu_apb_regs
-					REG_PMU_APB_PWR_STATUS_DBG_4
-					MASK_PMU_APB_PD_GPU_C0_STATE>;
-				cur_st_st0 = <&gpu_apb_regs
-					REG_GPU_APB_GONDUL_PDC_CONTROL_STACK0
-					MASK_GPU_APB_CUR_ST_ST0>;
-				gpu_top_state = <&pmu_apb_regs
-					REG_PMU_APB_PWR_STATUS_DBG_4
-					MASK_PMU_APB_PD_GPU_TOP_STATE>;
 
 				interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
 					<GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
@@ -826,8 +823,7 @@
 
 			dpu: dpu@31000000 {
 				compatible = "sprd,qogirl6-dpu";
-				reg = <0x0 0x31000000 0x0 0x1000>,
-				      <0x0 0x31001000 0x0 0x1000>;
+				reg = <0x0 0x31000000 0x0 0x1000>;
 				disp-reset-syscon = <&ap_ahb_regs 0x0004 0x2>;
 				iommu-reset-syscon = <&ap_ahb_regs 0x0004 0x4000>;
 				interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>;
@@ -1045,8 +1041,7 @@
 			dmc_controller: dmc-controller@60000000 {
 				compatible = "sprd,pub-dmc";
 				reg = <0x0 0x65002000 0x0 0x100>, /* proc res */
-					<0x0 0x60000000 0x0 0x9000>, /* mon res */
-					<0x0 0x60230000 0x0 0x664>; /* dmc res */
+					<0x0 0x60000000 0x0 0x9000>; /* mon res */
 			};
 
 			ptm_trace: ptm@60040000 {
@@ -1162,30 +1157,6 @@
 			#address-cells = <2>;
 			#size-cells = <2>;
 			ranges;
-
-			aon_apb_prot: aon-apb-prot {
-				compatible = "sprd,apb-prot";
-				sprd,apb-syscon = <&aon_apb_regs>;
-				interrupts = <GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>;
-				/* sprd,panic; */
-				sprd,lock_magic = <0x6896>;
-				/* sprd,glb_lock; */
-				/* sprd,lock_id = <0x0>; */
-				sprd,lock_but_write_int;
-				sprd,record_last;
-			};
-
-			pmu_apb_prot: pmu-apb-prot {
-				compatible = "sprd,apb-prot";
-				sprd,apb-syscon = <&pmu_apb_regs>;
-				interrupts = <GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>;
-				/* sprd,panic; */
-				sprd,lock_magic = <0x6896>;
-				/* sprd,glb_lock; */
-				/* sprd,lock_id = <0x0>; */
-				sprd,lock_but_write_int;
-				sprd,record_last;
-			};
 
 			eic_debounce: gpio@64100000 {
 				compatible = "sprd,qogirl6-eic-debounce", "sprd,sc9860-eic-debounce";
@@ -1411,8 +1382,8 @@
 				#pwm-cells = <2>;
 			};
 
-			apcpu_dvfs: apcpu-dvfs {
-				compatible = "sprd,cpufreq-v2";
+			sprd_hardware_cpufreq: hardware-dvfs-platform {
+				compatible = "sprd,hardware-cpufreq";
 			};
 
 			topdvfs_controller: topdvfsctrl@64014000 {
@@ -1421,7 +1392,29 @@
 				module-enable-cfg = <0x4 7>;
 				reg = <0 0x64014000 0 0x4000>;
 				sprd,topdvfs-sysctrl = <&top_dvfs_apb_regs>;
+				cpu-dcdc-cells = <&dcdc_cpu0>, <&dcdc_cpu1>;
 				device-dcdc-cells = <&dcdc_mm>, <&dcdc_modem>;
+				dcdc_cpu0: dcdc-cpu0 {
+					dcdc-cpu-dvfs-cfg = <&dvfs_dcdc_cpu0_cfg>;
+					dvfs-blk-sd-syscon = <&pmu_apb_regs
+						REG_PMU_APB_DVFS_BLOCK_SHUTDOWN_CFG
+						MASK_PMU_APB_DCDC_CPU0_DVFS_BLOCK_SHUTDOWN_EN>;
+				};
+
+				dcdc_cpu1: dcdc-cpu1 {
+					dcdc-cpu-dvfs-cfg = <&dvfs_dcdc_cpu1_cfg>;
+					dvfs-blk-sd-syscon = <&pmu_apb_regs
+						REG_PMU_APB_DVFS_BLOCK_SHUTDOWN_CFG
+						MASK_PMU_APB_DCDC_CPU1_DVFS_BLOCK_SHUTDOWN_EN>;
+				};
+
+				dvfs_dcdc_cpu0_cfg: dvfs-dcdc-cpu0-cfg {
+					compatible = "qogirl6-dcdc-cpu0";
+				};
+
+				dvfs_dcdc_cpu1_cfg: dvfs-dcdc-cpu1-cfg {
+					compatible = "qogirl6-dcdc-cpu1";
+				};
 
 				dcdc_mm: dcdc-mm {
 					dcdc-dvfs-enable = <0x18 20 1>;
@@ -1456,6 +1449,106 @@
 					ap_sys: ap-sys {
 						dcdc-subsys-tune-enable = <0x150 0 0>;
 					};
+				};
+			};
+
+			cpudvfs_dev: cpudvfs-dev@64018000 {
+				compatible = "sprd,qogirl6-cpudvfs";
+				reg = <0 0x64018000 0 0x1000>;
+				enable-syscon = <&aon_apb_regs REG_AON_APB_APB_EB1 MASK_AON_APB_DVFS_TOP_EB>;
+				topdvfs-controller = <&topdvfs_controller>;
+				host-cluster-cells = <&lit_core_cluster>, <&big_core_cluster>;
+				slave-cluster-cells = <&scu_cluster>, <&periph_cluster>, <&gic_cluster>;
+				mpll-cells = <&mpll_0>, <&mpll_1>, <&mpll_2>;
+				lit_core_cluster: lit-core-cluster {
+					belong-dcdc-cell = <0>;
+					/*sel, div, vol, vote_scu, vote_peri, vote_gic, mpllx*/
+					lit_core_cluster_tbl = <
+						0 0 0 0  0 0 0
+						1 1 0 1  1 1 0
+						2 1 0 2  1 1 0
+						3 0 0 3  1 1 0
+						3 0 1 4  1 1 1
+						1 0 2 5  1 1 0
+						3 0 3 6  4 4 2
+						2 0 4 7  4 4 0
+						3 0 5 8  4 5 3
+						3 0 6 9  4 5 4
+						3 0 7 10 4 5 5
+					>;
+				};
+
+				big_core_cluster:big-core-cluster {
+					belong-dcdc-cell = <1>;
+					/*sel, div, vol, vote_scu, vote_peri, vote_gic, mpllx*/
+					big_core_cluster_tbl = <
+						0 0 0 0  0 0 0
+						2 1 0 2  1 1 0
+						3 0 0 4  1 1 0
+						1 0 1 4  1 1 0
+						3 0 2 6  4 4 1
+						2 0 3 7  4 4 0
+						3 0 4 8  4 5 3
+						3 0 5 10 4 5 4
+						3 0 6 10 4 5 5
+						3 0 7 10 4 5 7
+					>;
+				};
+
+				scu_cluster: scu-cluster {
+					belong-dcdc-cell = <0>;
+					/* sel div vol ace_div mpllx */
+					scu_cluster_tbl = <
+						0 0 0 0 0
+						3 0 0 1 0
+						2 1 0 1 0
+						3 0 0 1 1
+						1 0 1 1 0
+						3 0 2 1 2
+						3 0 3 1 3
+						2 0 4 1 0
+						3 0 5 1 4
+						3 0 6 1 5
+						3 0 7 1 6
+					>;
+				};
+
+				periph_cluster:periph-cluster {
+					belong-dcdc-cell = <0>;
+					/* sel div vol */
+					periph_cluster_tbl = <
+						0 0 0
+						1 0 0
+						2 1 2
+						3 1 2
+						2 0 2
+						3 0 6
+					>;
+				};
+
+				gic_cluster: gic-cluster {
+					belong-dcdc-cell = <0>;
+					/*sel div vol*/
+					gic_cluster_tbl = <
+						0 0 0
+						1 0 0
+						2 1 2
+						3 1 2
+						2 0 2
+						3 0 2
+					>;
+				};
+
+				mpll_0: mpll-ananke {
+					mpll-sel-syscon = <&anlg_phy_gc_regs 0xc8 0xd0>;
+				};
+
+				mpll_1: mpll-prometheus {
+					mpll-sel-syscon = <&anlg_phy_g3_regs 0x98 0xd0>;
+				};
+
+				mpll_2: mpll-scu {
+					mpll-sel-syscon = <&anlg_phy_gc_regs 0x10c 0x68>;
 				};
 			};
 
@@ -1652,7 +1745,6 @@
 				phy-names = "usb";
 				dr-mode = "peripheral";
 				multipoint = "true";
-				sprd,usb-data-enable = <1>;
 				wakeup-source;
 			};
 
@@ -1661,11 +1753,11 @@
 				reg = <0 0x64750000 0 0x4000>;
 				sprd,syscon-mm-ahb = <&mm_ahb_regs>;
 				sprd,syscon-dsi-apb = <&anlg_phy_g10_regs>;
-				sprd,syscon-pmu-apb = <&pmu_apb_regs>;
 				sprd,ch-name = "TRAINING", "WTL", "MADR", "TPIU", "DBUS", "WCN";
 				sprd,ch-index = <15 1 0 2 3 4>;
 				sprd,dcfix;
 				sprd,mm;
+				power-domains = <&mm_domain>;
 				status = "disabled";
 			};
 
@@ -1684,34 +1776,22 @@
 				sprd,syscon-enable = <&aon_apb_regs>;
 				sprd,syscon-anag2 = <&anlg_phy_g2_regs>;
 				sprd,vdd-voltage = <3300000>;
-				io-channels = <&pmic_adc 30>, <&pmic_adc 31>;
-				io-channel-names = "dp", "dm";
 				#phy-cells = <0>;
 			};
 
 			usbpinmux: usbpinmux {
 				compatible = "sprd,qogirl6-usbpinmux";
 				sprd,syscon-config = <&aon_apb_regs>;
-				usb-mux-syscon = <&aon_apb_regs REG_AON_APB_USB_UART_JTAG_MUX
+				syscons = <&aon_apb_regs REG_AON_APB_USB_UART_JTAG_MUX
 					(MASK_AON_APB_USB_JTAG_HW_SEL_EN |
 					MASK_AON_APB_DAP_USB_JTAG_SEL |
 					MASK_AON_APB_USB_BYPASS_SEL | MASK_AON_APB_UART_JTAG_SEL)>;
+				syscon-names = "usb_uart_jtag_mux";
 				vdd-supply = <&vddusb33>;
 				sprd,vdd-voltage = <3300000>;
-			};
-
-			socid: socid@402e00e0{
-				compatible = "sprd,soc-id";
-				chip_id = <&aon_apb_regs REG_AON_APB_AON_CHIP_ID0
-					MASK_AON_APB_AON_CHIP_ID0>;
-				plat_id = <&aon_apb_regs REG_AON_APB_AON_PLAT_ID0
-					MASK_AON_APB_AON_PLAT_ID0>;
-				implement_id = <&aon_apb_regs REG_AON_APB_AON_IMPL_ID
-					MASK_AON_APB_AON_IMPL_ID>;
-				manufacture_id = <&aon_apb_regs  REG_AON_APB_AON_MFT_ID
-					MASK_AON_APB_AON_MFT_ID>;
-				version_id = <&aon_apb_regs REG_AON_APB_AON_VER_ID
-					MASK_AON_APB_AON_VER_ID>;
+				pinctrl-names = "uart_inf_sel0", "uart_inf_sel1";
+				pintcrl-0 = <&uart_inf_sel0>;
+				pintcrl-1 = <&uart_inf_sel1>;
 			};
 		};
 
@@ -1948,14 +2028,6 @@
 				   0x89300000 0x5f000>;
 	};
 
-	audio-dsp-dump@3 {
-		compatible = "unisoc,audio_dsp_call_info";
-		sprd-usemem-type = <0x5>;
-		sprd-usemem-bytes =<0x200>;
-		sprd-dst = /bits/ 8 <1>;
-		sprd-channel =/bits/ 8 <16>;
-	};
-
 	audio_pipe_voice {
 		compatible = "unisoc,audio_pipe_voice";
 		sprd,writesync = <0>;
@@ -1991,19 +2063,18 @@
 
 	audiocp_boot {
 		compatible = "unisoc,audcp-boot";
-		dsp-reboot-mode = <1>;
-		sysshutdown = <&pmu_apb_regs REG_PMU_APB_PD_AUDCP_CFG_0 0x3000000>;
-		coreshutdown = <&pmu_apb_regs REG_PMU_APB_PD_AUDCP_AUDDSP_CFG_0 0x3000000>;
-		deepsleep = <&pmu_apb_regs REG_PMU_APB_FORCE_DEEP_SLEEP_CFG_0 MASK_PMU_APB_AUDCP_FORCE_DEEP_SLEEP_REG>;
-		corereset = <&pmu_apb_regs REG_PMU_APB_DM_SOFT_RST  MASK_PMU_APB_AUDCP_SOFT_RST>;
-		sysreset = <&pmu_apb_regs REG_PMU_APB_SYS_SOFT_RST_0  MASK_PMU_APB_AUDCP_SOFT_RST>;
-		reset_sel = <&pmu_apb_regs REG_PMU_APB_SOFT_RST_SEL_0 MASK_PMU_APB_AUDCP_SOFT_RST>;
-		sysstatus = <&pmu_apb_regs REG_PMU_APB_PWR_STATUS_DBG_21  MASK_PMU_APB_PD_AUDCP_STATE>;
-		corestatus = <&pmu_apb_regs REG_PMU_APB_PWR_STATUS_DBG_21 MASK_PMU_APB_PD_AUDCP_AUDDSP_STATE>;
+		sysshutdown = <&pmu_apb_regs REG_WTL_AON_APB_OCM_RST_MSK MASK_AON_APB_AP_WDG_EB>;
+		coreshutdown = <&pmu_apb_regs REG_AP_AHB_AP_ASYNC_BRG MASK_MM_AHB_DCAM_INT_1_MASK>;
+		deepsleep = <&pmu_apb_regs REG_AP_AHB_ASYNC_BRIDGE_DEBUG_SIGNAL_W_AP MASK_MM_AHB_JPG_SOFT_RST_MASK>;
+		corereset = <&pmu_apb_regs REG_AP_AHB_AP_QOS0  MASK_MM_AHB_ISP_SOFT_RST>;
+		sysreset = <&pmu_apb_regs REG_AP_AHB_AP_QOS0  MASK_MM_AHB_CPP_DMA_SOFT_RST>;
+		reset_sel = <&pmu_apb_regs REG_PMU_APB_APCPU_SOFT_RST_TYPE_CFG MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
+		sysstatus = <&pmu_apb_regs REG_AP_AHB_AP_QOS1  MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
+		corestatus = <&pmu_apb_regs REG_PMU_APB_BISR_BYP_CFG_1 MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
 		sleepstatus = <&pmu_apb_regs REG_AON_APB_AUTO_GATE_CTRL1 MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
-		bootprotect = <&aon_apb_regs REG_AON_APB_AUDCP_BOOT_PROT  MASK_AON_APB_AUDCP_REG_PROT_VAL>;
-		bootvector = <&aon_apb_regs REG_AON_APB_AUDCP_DSP_CTRL0 MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
-		bootaddress_sel = <&aon_apb_regs REG_AON_APB_AUDCP_DSP_CTRL1 MASK_AON_APB_AUDCP_DSP_BOOT>;
+		bootprotect = <&aon_apb_regs REG_AP_AHB_M6_LPC  MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
+		bootvector = <&aon_apb_regs REG_PMU_APB_BISR_BUSY_STATUS_2 MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
+		bootaddress_sel = <&aon_apb_regs REG_AON_APB_AUDCP_DSP_CTRL1 MASK_WTL_AON_APB_RSV_REG_B_ZEROS>;
 	};
 
 	apipe-pcm {

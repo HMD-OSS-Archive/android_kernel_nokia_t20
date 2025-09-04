@@ -15,7 +15,6 @@
 #define __LINUX_SPRD_USBM_H
 
 #include <linux/notifier.h>
-#include <linux/kallsyms.h>
 
 /* associate a type with PAM */
 enum sprd_usbm_event_type {
@@ -38,11 +37,11 @@ extern void musb_set_utmi_60m_flag(bool flag);
 extern int call_sprd_usbm_event_notifiers(unsigned int id, unsigned long val, void *v);
 extern int register_sprd_usbm_notifier(struct notifier_block *nb, unsigned int id);
 extern int sprd_usbm_event_is_active(void);
-extern void sprd_usbm_event_set_deactive(void);
+extern int sprd_usbm_event_set_deactive(void);
 extern int sprd_usbm_hsphy_get_onoff(void);
-extern void sprd_usbm_hsphy_set_onoff(int onoff);
+extern int sprd_usbm_hsphy_set_onoff(int onoff);
 extern int sprd_usbm_ssphy_get_onoff(void);
-extern void sprd_usbm_ssphy_set_onoff(int onoff);
+extern int sprd_usbm_ssphy_set_onoff(int onoff);
 #else
 static inline int call_sprd_usbm_event_notifiers(unsigned int id, unsigned long val, void *v)
 {
@@ -56,25 +55,25 @@ static inline int sprd_usbm_event_is_active(void)
 {
 	return 0;
 }
-static inline void sprd_usbm_event_set_deactive(void)
+static inline int sprd_usbm_event_set_deactive(void)
 {
-	return;
+	return 0;
 }
 static inline int sprd_usbm_hsphy_get_onoff(void)
 {
 	return 0;
 }
-static inline void sprd_usbm_hsphy_set_onoff(int onoff)
+static inline int sprd_usbm_hsphy_set_onoff(int onoff)
 {
-	return;
+	return 0;
 }
 static inline int sprd_usbm_ssphy_get_onoff(void)
 {
 	return 0;
 }
-static inline void sprd_usbm_ssphy_set_onoff(int onoff)
+static inline int sprd_usbm_ssphy_set_onoff(int onoff)
 {
-	return;
+	return 0;
 }
 #endif /* IS_ENABLED(CONFIG_SPRD_USBM) */
 

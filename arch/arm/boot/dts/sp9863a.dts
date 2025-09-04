@@ -8,6 +8,8 @@
 /dts-v1/;
 #include <dt-bindings/gpio/gpio.h>
 #include "sc9863a.dtsi"
+#include "sp9863a-l3dvfs.dtsi"
+#include "sp9863a-l3rdvfs.dtsi"
 #include "sc2721.dtsi"
 #include "sprd-sound-sharkl.dtsi"
 #include "sp9863a-mach.dtsi"
@@ -32,7 +34,7 @@
 
 	chosen: chosen {
 		stdout-path = "serial1:115200n8";
-		bootargs = "earlycon console=ttyS1,115200n8 loop.max_part=7 loglevel=1 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-ahb/20600000.sdio dummy_hcd.num=0 initcall_debug=1 vmalloc=300M";
+		bootargs = "earlycon console=ttySPRD1,115200n8 loglevel=1 init=/init root=/dev/ram0 rw printk.devkmsg=on androidboot.boot_devices=soc/soc:ap-ahb/20600000.sdio dummy_hcd.num=0 initcall_debug=1";
 	};
 
 	extcon_gpio: extcon-gpio {
@@ -41,6 +43,28 @@
 	};
 };
 
+
+
+&i2c3 {
+	status = "okay";
+
+	touchscreen@38 {
+		compatible = "focaltech,ft5436-touchscreen";
+		reg = <0x38>;
+		gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH
+			&ap_gpio 144 GPIO_ACTIVE_HIGH>;
+		controller = "focaltech,FT5436";
+		virtualkeys = <580 60 1320 60 45
+			172 360 1320 60 45
+			158 600 1320 60 45>;
+		surface-width = <720>;
+		surface-height = <1280>;
+		firmware-auto-upgrade;
+		private-data {
+			a8 = /bits/ 8 <0x5a>;
+		};
+	};
+};
 
 &i2c7 {
 	status = "okay";
@@ -79,29 +103,12 @@
 	regulator-always-on;
 };
 
-&vddsim2 {
-	status = "disabled";
+&vddemmccore {
+	regulator-always-on;
 };
 
-&i2c3 {
-	status = "okay";
-
-	touchscreen@38 {
-		compatible = "focaltech,ft5436-touchscreen";
-		reg = <0x38>;
-		gpios = <&ap_gpio 145 GPIO_ACTIVE_HIGH
-			&ap_gpio 144 GPIO_ACTIVE_HIGH>;
-		controller = "focaltech,FT5436";
-		virtualkeys = <580 60 1320 60 45
-			172 360 1320 60 45
-			158 600 1320 60 45>;
-		surface-width = <720>;
-		surface-height = <1280>;
-		firmware-auto-upgrade;
-		private-data {
-			a8 = /bits/ 8 <0x5a>;
-		};
-	};
+&vddsim2 {
+	status = "disabled";
 };
 
 &i2c7 {
@@ -213,6 +220,43 @@
 
 &iommu_vsp {
 	status = "okay";
+};
+
+&sprd_hwdvfs {
+	hwdvfs_cluster0: cluster@0 {
+		reg = <0 0x0>;
+		dcdc-ctrl = <&dcdc_ctrl1>;
+	};
+
+	hwdvfs_cluster1: cluster@1 {
+		reg = <0 0x1>;
+		dcdc-ctrl = <&dcdc_ctrl0>;
+	};
+
+	hwdvfs_dsu: dsu@0 {
+		reg = <0 0x0>;
+		dcdc-ctrl = <&dcdc_ctrl0>;
+	};
+
+	dcdc_ctrl0: dcdc-controller@0 {
+		reg = <0x0 0x0>;
+		volt-via-adi;
+		volt-hold-us = <50>;
+		volt-pause-us = <5>;
+		volt-timeout-us = <800>;
+		volt-stable-us  = <5>;
+		volt-max-step-microvolt = <25000>;
+	};
+
+	dcdc_ctrl1: dcdc-controller@1 {
+		reg = <0x1 0x2>;
+		volt-via-i2c;
+		volt-hold-us = <25>;
+		volt-pause-us = <20>;
+		volt-timeout-us = <800>;
+		volt-stable-us  = <25>;
+		volt-max-step-microvolt = <1200004>;
+	};
 };
 
 &hsphy {

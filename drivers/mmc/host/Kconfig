@@ -449,7 +449,7 @@ config MMC_OMAP_HS
 
 config MMC_WBSD
 	tristate "Winbond W83L51xD SD/MMC Card Interface support"
-	depends on ISA_DMA_API && !M68K
+	depends on ISA_DMA_API
 	help
 	  This selects the Winbond(R) W83L51xD Secure digital and
 	  Multimedia card Interface.
@@ -639,16 +639,6 @@ config MMC_SDHCI_SPRD
 	  This selects the SDIO Host Controller in Spreadtrum
 	  SoCs, this driver supports R11(IP version: R11P0).
 
-	  If you have a controller with this interface, say Y or M here.
-
-	  If unsure, say N.
-
-config MMC_SPRD_SDHCR11P3
-	tristate "Spreadtrum SDIO host Controller(IP version:R11P3) support"
-	depends on ARCH_SPRD
-	default n
-	help
-	  This selects the SDIO Host Controller(IP version(R11P3)) in spreadtrum platform.
 	  If you have a controller with this interface, say Y or M here.
 
 	  If unsure, say N.

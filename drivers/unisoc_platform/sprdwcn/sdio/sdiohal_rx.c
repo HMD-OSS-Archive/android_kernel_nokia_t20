@@ -224,9 +224,10 @@ int sdiohal_rx_thread(void *data)
 		if (p_data->exit_flag)
 			break;
 
-		p_data->tm_end_irq = ktime_get_boot_fast_ns();
+		getnstimeofday(&p_data->tm_end_irq);
 		sdiohal_pr_perf("rx sch time:%ld\n",
-			(long)(p_data->tm_end_irq - p_data->tm_begin_irq));
+				(long)(timespec_to_ns(&p_data->tm_end_irq) -
+				timespec_to_ns(&p_data->tm_begin_irq)));
 
 		sdiohal_resume_wait();
 		sdiohal_cp_rx_wakeup(PACKER_RX);

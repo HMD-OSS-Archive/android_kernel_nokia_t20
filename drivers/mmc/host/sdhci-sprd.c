@@ -19,7 +19,6 @@
 #include <linux/slab.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
-#include <linux/soc/sprd/sprd_apb_prot.h>
 
 #include "sdhci-pltfm.h"
 #include "mmc_hsq.h"
@@ -29,19 +28,6 @@
 #include "sdhci-sprd-swcq.c"
 #endif
 
-#include "sdhci-sprd-powp.h"
-#include "sdhci-sprd-powp.c"
-
-#include "sdhci-sprd-tuning.h"
-#include "sdhci-sprd-tuning.c"
-
-#define DRIVER_NAME "sprd-sdhci"
-#define SDHCI_SPRD_DUMP(f, x...) \
-	pr_err("%s: " DRIVER_NAME ": " f, mmc_hostname(host->mmc), ## x)
-
-#define SEND_TUNING_BLOCK 19
-#define SEND_TUNING_BLOCK_HS200 21
-
 /* SDHCI_ARGUMENT2 register high 16bit */
 #define SDHCI_SPRD_ARG2_STUFF		GENMASK(31, 16)
 
@@ -50,11 +36,7 @@
 #define  SDHCI_SPRD_DLL_EN		BIT(21)
 #define  SDHCI_SPRD_DLL_SEARCH_MODE	BIT(16)
 #define  SDHCI_SPRD_DLL_INIT_COUNT	0xc00
-#ifdef CONFIG_MMC_SPRD_SDHCR11P3
-#define  SDHCI_SPRD_DLL_PHASE_INTERNAL	0x2
-#else
-#define SDHCI_SPRD_DLL_PHASE_INTERNAL	0x3
-#endif
+#define  SDHCI_SPRD_DLL_PHASE_INTERNAL	0x3
 
 #define SDHCI_SPRD_REG_32_DLL_DLY	0x204
 
@@ -88,7 +70,7 @@
  */
 #define  SDHCI_HW_RESET_CARD		BIT(3)
 
-#define SDHCI_SPRD_MAX_CUR		1020
+#define SDHCI_SPRD_MAX_CUR		0xFFFFFF
 #define SDHCI_SPRD_CLK_MAX_DIV		1023
 
 #define SDHCI_SPRD_CLK_DEF_RATE		26000000
@@ -117,6 +99,7 @@
 #define SDHCI_SPRD_DLY_TIMING(wr_dly, cmd_dly, posrd_dly, negrd_dly) \
 		((wr_dly) | ((cmd_dly) << 8) | \
 		((posrd_dly) << 16) | ((negrd_dly) << 24))
+
 
 struct ranges_t {
 	int start;
@@ -151,8 +134,6 @@ struct sdhci_sprd_host {
 	struct register_hotplug reg_debounce_en;
 	struct register_hotplug reg_debounce_cn;
 	struct register_hotplug reg_rmldo_en;
-	u32 int_status;
-	u32 sdhs_tuning;
 };
 
 struct sdhci_sprd_phy_cfg {
@@ -173,11 +154,6 @@ static const struct sdhci_sprd_phy_cfg sdhci_sprd_phy_cfgs[] = {
 };
 
 #define TO_SPRD_HOST(host) sdhci_pltfm_priv(sdhci_priv(host))
-
-static void sdhci_sprd_set_powp(struct mmc_host *mmc, struct mmc_card *card)
-{
-	mmc_set_powp(card);
-}
 
 static void sdhci_sprd_init_config(struct sdhci_host *host)
 {
@@ -220,15 +196,15 @@ static inline void sdhci_sprd_writew(struct sdhci_host *host, u16 val, int reg)
 
 static inline void sdhci_sprd_writeb(struct sdhci_host *host, u8 val, int reg)
 {
+	/*
+	 * Since BIT(3) of SDHCI_SOFTWARE_RESET is reserved according to the
+	 * standard specification, sdhci_reset() write this register directly
+	 * without checking other reserved bits, that will clear BIT(3) which
+	 * is defined as hardware reset on Spreadtrum's platform and clearing
+	 * it by mistake will lead the card not work. So here we need to work
+	 * around it.
+	 */
 	if (unlikely(reg == SDHCI_SOFTWARE_RESET)) {
-		/*
-		 * Since BIT(3) of SDHCI_SOFTWARE_RESET is reserved according to the
-		 * standard specification, sdhci_reset() write this register directly
-		 * without checking other reserved bits, that will clear BIT(3) which
-		 * is defined as hardware reset on Spreadtrum's platform and clearing
-		 * it by mistake will lead the card not work. So here we need to work
-		 * around it.
-		 */
 		if (readb_relaxed(host->ioaddr + reg) & SDHCI_HW_RESET_CARD)
 			val |= SDHCI_HW_RESET_CARD;
 	}
@@ -370,7 +346,6 @@ static void sdhci_sprd_set_clock(struct sdhci_host *host, unsigned int clock)
 
 		if (clock <= 400000)
 			en = true;
-
 		sdhci_sprd_set_dll_invert(host, SDHCI_SPRD_BIT_CMD_DLY_INV |
 					  SDHCI_SPRD_BIT_POSRD_DLY_INV, en);
 		clk_changed = true;
@@ -407,9 +382,8 @@ static void sdhci_sprd_set_uhs_signaling(struct sdhci_host *host,
 	struct mmc_host *mmc = host->mmc;
 	u32 *p = sprd_host->phy_delay;
 	u16 ctrl_2;
-	bool en = false;
 
-	if ((timing == host->timing) && (strcmp(mmc_hostname(mmc), "mmc0") == 0))
+	if (timing == host->timing)
 		return;
 
 	ctrl_2 = sdhci_readw(host, SDHCI_HOST_CONTROL2);
@@ -445,13 +419,6 @@ static void sdhci_sprd_set_uhs_signaling(struct sdhci_host *host,
 	}
 
 	sdhci_writew(host, ctrl_2, SDHCI_HOST_CONTROL2);
-
-	if (timing == MMC_TIMING_SD_HS || timing == MMC_TIMING_MMC_HS ||
-			timing == MMC_TIMING_LEGACY)
-		en = true;
-
-	sdhci_sprd_set_dll_invert(host, SDHCI_SPRD_BIT_CMD_DLY_INV |
-		SDHCI_SPRD_BIT_POSRD_DLY_INV, en);
 
 	if (!mmc->ios.enhanced_strobe)
 		sdhci_writel(host, p[timing], SDHCI_SPRD_REG_32_DLL_DLY);
@@ -507,35 +474,6 @@ static void sdhci_sprd_request_done(struct sdhci_host *host,
 	 mmc_request_done(host->mmc, mrq);
 }
 
-static int sprd_calc_hs_mode_tuning_range(struct sdhci_sprd_host *host, int *value_t)
-{
-	int i;
-	bool prev_vl = 0;
-	int range_count = 0;
-	u32 dll_cnt = host->dll_cnt;
-	u32 mid_dll_cnt = host->mid_dll_cnt;
-	struct ranges_t *ranges = host->ranges;
-
-	for (i = 0; i < mid_dll_cnt; i++) {
-		if ((!prev_vl) && value_t[i] && value_t[i + dll_cnt] && value_t[i + mid_dll_cnt]) {
-			range_count++;
-			ranges[range_count - 1].start = i;
-		}
-
-		if (value_t[i] && value_t[i + dll_cnt] && value_t[i + mid_dll_cnt]) {
-			ranges[range_count - 1].end = i;
-			pr_debug("recalculate tuning ok: %d\n", i);
-		} else
-			pr_debug("recalculate tuning fail: %d\n", i);
-
-		prev_vl = value_t[i] && value_t[i + dll_cnt] && value_t[i + mid_dll_cnt];
-	}
-
-	host->ranges = ranges;
-
-	return range_count;
-}
-
 static int sprd_calc_tuning_range(struct sdhci_sprd_host *host, int *value_t)
 {
 	int i;
@@ -588,6 +526,7 @@ static int sprd_calc_tuning_range(struct sdhci_sprd_host *host, int *value_t)
 	return range_count;
 }
 
+
 static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
@@ -605,22 +544,15 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	int mid_step;
 	int final_phase;
 	u32 dll_cfg, mid_dll_cnt, dll_cnt, dll_dly;
-	bool cfg_use_adma = false;
 
 	sdhci_reset(host, SDHCI_RESET_CMD | SDHCI_RESET_DATA);
 
 	dll_cfg = sdhci_readl(host, SDHCI_SPRD_REG_32_DLL_CFG);
 	dll_cfg &= ~(0xf << 24);
 	sdhci_writel(host, dll_cfg, SDHCI_SPRD_REG_32_DLL_CFG);
-
-	if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-			(strcmp(mmc_hostname(mmc), "mmc1") == 0))
-		dll_cnt = 128;
-	else
-		dll_cnt = sdhci_readl(host, SDHCI_SPRD_REG_32_DLL_STS0) & 0xff;
+	dll_cnt = sdhci_readl(host, SDHCI_SPRD_REG_32_DLL_STS0) & 0xff;
 	dll_cnt = dll_cnt << 1;
 	length = (dll_cnt * 150) / 100;
-
 	pr_info("%s: dll config 0x%08x, dll count %d, tuning length: %d\n",
 		mmc_hostname(mmc), dll_cfg, dll_cnt, length);
 
@@ -634,28 +566,10 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	}
 
 	dll_dly = p[mmc->ios.timing];
-
-	/* config dma mode in tuning. */
-	if (!cfg_use_adma && (host->flags & SDHCI_USE_ADMA) && strcmp(mmc_hostname(mmc), "mmc0")) {
-		cfg_use_adma = true;
-		host->flags &= ~SDHCI_USE_ADMA;
-		host->flags |= SDHCI_USE_SDMA;
-	}
-
 	do {
 		if (host->flags & SDHCI_HS400_TUNING) {
 			dll_dly &= ~SDHCI_SPRD_CMD_DLY_MASK;
 			dll_dly |= (i << 8);
-		} else if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-					(strcmp(mmc_hostname(mmc), "mmc1") == 0)) {
-			if (opcode == MMC_SET_BLOCKLEN) {
-				dll_dly &= ~(SDHCI_SPRD_CMD_DLY_MASK);
-				dll_dly |= ((i << 8) & SDHCI_SPRD_CMD_DLY_MASK);
-			} else {
-				dll_dly &= ~(SDHCI_SPRD_POSRD_DLY_MASK | SDHCI_SPRD_NEGRD_DLY_MASK);
-				dll_dly |= (((i << 16) & SDHCI_SPRD_POSRD_DLY_MASK) |
-					((i << 24) & SDHCI_SPRD_NEGRD_DLY_MASK));
-			}
 		} else {
 			dll_dly &= ~(SDHCI_SPRD_CMD_DLY_MASK |
 				     SDHCI_SPRD_POSRD_DLY_MASK);
@@ -665,17 +579,7 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		sdhci_writel(host, dll_dly, SDHCI_SPRD_REG_32_DLL_DLY);
 		pr_debug("%s: dll_dly 0x%08x\n", mmc_hostname(mmc), dll_dly);
 
-		if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-				(strcmp(mmc_hostname(mmc), "mmc1") == 0)) {
-			sprd_host->sdhs_tuning = 1;
-			if (opcode == MMC_SET_BLOCKLEN)
-				value = !mmc_send_tuning_cmd(mmc);
-			else
-				value = !mmc_send_tuning_read(mmc);
-			sprd_host->sdhs_tuning = 0;
-		} else {
-			value = !mmc_send_tuning(mmc, opcode, NULL);
-		}
+		value = !mmc_send_tuning(mmc, opcode, NULL);
 
 		if ((!prev_vl) && value) {
 			range_count++;
@@ -699,47 +603,27 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	sprd_host->ranges = ranges;
 
 	first_vl = (value_t[0] && value_t[dll_cnt]);
-	if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-			(strcmp(mmc_hostname(mmc), "mmc1") == 0))
-		range_count = sprd_calc_hs_mode_tuning_range(sprd_host, value_t);
-	else
-		range_count = sprd_calc_tuning_range(sprd_host, value_t);
+	range_count = sprd_calc_tuning_range(sprd_host, value_t);
 
 	if (range_count == 0) {
 		pr_warn("%s: all tuning phases fail!\n", mmc_hostname(mmc));
 		err = -EIO;
 		goto out;
 	}
-	if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-			(strcmp(mmc_hostname(mmc), "mmc1") == 0)) {
-		if ((range_count > 1) && (ranges[range_count - 1].end == 127)
-				&& (ranges[0].start == 0)) {
-			ranges[0].start = ranges[range_count - 1].start;
-			range_count--;
 
-			if (ranges[0].end >= mid_dll_cnt)
-				ranges[0].end = mid_dll_cnt;
-		}
-	} else {
-		if ((range_count > 1) && first_vl && value) {
-			ranges[0].start = ranges[range_count - 1].start;
-			range_count--;
+	if ((range_count > 1) && first_vl && value) {
+		ranges[0].start = ranges[range_count - 1].start;
+		range_count--;
 
-			if (ranges[0].end >= mid_dll_cnt)
-				ranges[0].end = mid_dll_cnt;
-		}
+		if (ranges[0].end >= mid_dll_cnt)
+			ranges[0].end = mid_dll_cnt;
 	}
 
 	for (i = 0; i < range_count; i++) {
 		int len = (ranges[i].end - ranges[i].start + 1);
 
-		if (len < 0) {
-			if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-					(strcmp(mmc_hostname(mmc), "mmc1") == 0))
-				len += mid_dll_cnt;
-			else
-				len += dll_cnt;
-		}
+		if (len < 0)
+			len += dll_cnt;
 
 		pr_debug("%s: good tuning phase range %d ~ %d\n",
 			 mmc_hostname(mmc), ranges[i].start, ranges[i].end);
@@ -757,14 +641,8 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	mid_step = ranges[longest_range].start + longest_range_len / 2;
 	mid_step %= dll_cnt;
 
-	if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-			(strcmp(mmc_hostname(mmc), "mmc1") == 0)) {
-		dll_cfg &= ~(0xf << 24);
-		sdhci_writel(host, dll_cfg, SDHCI_SPRD_REG_32_DLL_CFG);
-	} else {
-		dll_cfg |= 0xf << 24;
-		sdhci_writel(host, dll_cfg, SDHCI_SPRD_REG_32_DLL_CFG);
-	}
+	dll_cfg |= 0xf << 24;
+	sdhci_writel(host, dll_cfg, SDHCI_SPRD_REG_32_DLL_CFG);
 
 	if (mid_step <= dll_cnt)
 		final_phase = (mid_step * 256) / dll_cnt;
@@ -774,17 +652,6 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	if (host->flags & SDHCI_HS400_TUNING) {
 		p[mmc->ios.timing] &= ~SDHCI_SPRD_CMD_DLY_MASK;
 		p[mmc->ios.timing] |= (final_phase << 8);
-	} else if ((mmc->ios.timing == MMC_TIMING_SD_HS) &&
-				(strcmp(mmc_hostname(mmc), "mmc1") == 0)) {
-		if (opcode == MMC_SET_BLOCKLEN) {
-			p[mmc->ios.timing] &= ~(SDHCI_SPRD_CMD_DLY_MASK);
-			p[mmc->ios.timing] |= ((final_phase << 8) & SDHCI_SPRD_CMD_DLY_MASK);
-		} else {
-			p[mmc->ios.timing] &= ~(SDHCI_SPRD_POSRD_DLY_MASK |
-						SDHCI_SPRD_NEGRD_DLY_MASK);
-			p[mmc->ios.timing] |= (((final_phase << 16) & SDHCI_SPRD_POSRD_DLY_MASK) |
-				((final_phase << 24) & SDHCI_SPRD_NEGRD_DLY_MASK));
-		}
 	} else {
 		p[mmc->ios.timing] &= ~(SDHCI_SPRD_CMD_DLY_MASK |
 					SDHCI_SPRD_POSRD_DLY_MASK);
@@ -800,12 +667,6 @@ static int sdhci_sprd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 out:
 	host->flags &= ~SDHCI_HS400_TUNING;
-
-	if (cfg_use_adma) {
-		host->flags &= ~SDHCI_USE_SDMA;
-		host->flags |= SDHCI_USE_ADMA;
-	}
-
 	kfree(ranges);
 	kfree(value_t);
 
@@ -835,7 +696,7 @@ static void sdhci_sprd_fast_hotplug_enable(struct sdhci_sprd_host *sprd_host)
 			return;
 		}
 		reg_value |= sprd_host->reg_rmldo_en.mask;
-		ret = sprd_apb_prot_write(sprd_host->reg_rmldo_en.regmap,
+		ret = regmap_write(sprd_host->reg_rmldo_en.regmap,
 				sprd_host->reg_rmldo_en.reg,
 				reg_value);
 		if (ret < 0) {
@@ -910,20 +771,14 @@ static void sdhci_sprd_set_power(struct sdhci_host *host, unsigned char mode,
 			sdhci_sprd_fast_hotplug_disable(sprd_host);
 
 		if (!host->mmc_host_ops.get_cd(host->mmc)) {
-			unsigned char old_signal_voltage = mmc->ios.signal_voltage;
-			unsigned short old_vdd = mmc->ios.vdd;
 			/*
 			 * make sure io_voltage will keep 3.3V in next power up while plugin sd,
 			 * but will not do this in deepsleep power off
 			 */
 			mmc->ios.signal_voltage = MMC_SIGNAL_VOLTAGE_330;
-			mmc->ios.vdd = 18;
 			ret = host->mmc_host_ops.start_signal_voltage_switch(mmc, &mmc->ios);
 			if (ret)
-				pr_err("%s: signal voltage set to 3.3v fail %d!\n",
-					mmc_hostname(mmc), ret);
-			mmc->ios.vdd = old_vdd;
-			mmc->ios.signal_voltage = old_signal_voltage;
+				pr_err("signal voltage set to 3.3v fail %d!\n", ret);
 		}
 
 		sdhci_sprd_signal_voltage_on_off(host, 0);
@@ -946,59 +801,6 @@ static void sdhci_sprd_set_power(struct sdhci_host *host, unsigned char mode,
 	}
 }
 
-static void sdhci_sprd_dump_vendor_regs(struct sdhci_host *host)
-{
-	u32 command;
-	u32 clk_ctrl;
-	u32 host_ctrl2;
-	u32 delay_value;
-	u32 int_sts;
-	char sdhci_hostname[64];
-	struct sdhci_sprd_host *sprd_host = TO_SPRD_HOST(host);
-
-	command = SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND));
-	if ((command == SEND_TUNING_BLOCK) || (command == SEND_TUNING_BLOCK_HS200) ||
-		sprd_host->sdhs_tuning)
-		return;
-
-	int_sts = sdhci_readl(host, SDHCI_INT_STATUS);
-	clk_ctrl = sdhci_readl(host, SDHCI_CLOCK_CONTROL);
-	host_ctrl2 = sdhci_readl(host, SDHCI_AUTO_CMD_STATUS);
-	delay_value = sdhci_readl(host, SDHCI_SPRD_REG_32_DLL_DLY);
-	SDHCI_SPRD_DUMP("CMD%d Error 0x%08x 0x%08x 0x%08x 0x%08x\n",
-		command, int_sts, clk_ctrl, host_ctrl2, delay_value);
-
-	if (!host->mmc->card)
-		return;
-
-	sprintf(sdhci_hostname, "%s%s", mmc_hostname(host->mmc),
-			": sprd-sdhci + 0x000: ");
-	print_hex_dump(KERN_ERR, sdhci_hostname, DUMP_PREFIX_OFFSET,
-			16, 4, host->ioaddr, 64, 0);
-
-	sprintf(sdhci_hostname, "%s%s", mmc_hostname(host->mmc),
-			": sprd-sdhci + 0x200: ");
-	print_hex_dump(KERN_ERR, sdhci_hostname, DUMP_PREFIX_OFFSET,
-			16, 4, host->ioaddr + 0x200, 48, 0);
-
-	sprintf(sdhci_hostname, "%s%s", mmc_hostname(host->mmc),
-			": sprd-sdhci + 0x250: ");
-	print_hex_dump(KERN_ERR, sdhci_hostname, DUMP_PREFIX_OFFSET,
-			16, 4, host->ioaddr + 0x250, 32, 0);
-}
-
-static u32 sdhci_sprd_int_status(struct sdhci_host *host, u32 intmask)
-{
-	struct sdhci_sprd_host *sprd_host = TO_SPRD_HOST(host);
-
-	sprd_host->int_status = intmask;
-
-	if (intmask & SDHCI_INT_ERROR_MASK)
-		sdhci_sprd_dump_vendor_regs(host);
-
-	return intmask;
-}
-
 static struct sdhci_ops sdhci_sprd_ops = {
 	.read_l = sdhci_sprd_readl,
 	.write_l = sdhci_sprd_writel,
@@ -1017,7 +819,6 @@ static struct sdhci_ops sdhci_sprd_ops = {
 #if IS_ENABLED(CONFIG_MMC_SWCQ)
 	.dump_vendor_regs = sdhci_sprd_dumpregs,
 #endif
-	.irq = sdhci_sprd_int_status,
 };
 
 static void sdhci_sprd_check_auto_cmd23(struct mmc_host *mmc,
@@ -1374,15 +1175,6 @@ static int sdhci_sprd_probe(struct platform_device *pdev)
 	if (ret)
 		goto pm_runtime_disable;
 
-	host->mmc->ocr_avail = 0x40000;
-	host->mmc->ocr_avail_sdio = host->mmc->ocr_avail;
-	host->mmc->ocr_avail_sd = host->mmc->ocr_avail;
-	host->mmc->ocr_avail_mmc = host->mmc->ocr_avail;
-
-	host->mmc->max_current_330 = SDHCI_SPRD_MAX_CUR;
-	host->mmc->max_current_300 = SDHCI_SPRD_MAX_CUR;
-	host->mmc->max_current_180 = SDHCI_SPRD_MAX_CUR;
-
 	sprd_host->flags = host->flags;
 
 #if IS_ENABLED(CONFIG_MMC_SWCQ)
@@ -1408,13 +1200,6 @@ static int sdhci_sprd_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_cleanup_host;
 #endif
-
-	if (!mmc_check_wp_fn(host->mmc)) {
-		host->mmc_host_ops.init_card = sdhci_sprd_set_powp;
-		ret = mmc_wp_init(host->mmc);
-		if (ret)
-			goto err_cleanup_host;
-	}
 
 	/* disable polling scan for sdiocard */
 	if ((host->mmc->caps2 & MMC_CAP2_NO_SD)
@@ -1453,9 +1238,6 @@ static int sdhci_sprd_remove(struct platform_device *pdev)
 {
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_sprd_host *sprd_host = TO_SPRD_HOST(host);
-
-	if (!mmc_check_wp_fn(host->mmc))
-		mmc_wp_remove(host->mmc);
 
 	sdhci_remove_host(host, 0);
 

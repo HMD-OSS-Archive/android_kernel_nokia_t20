@@ -17,8 +17,6 @@
 
 	sprd,sc-id = "ums312 2h10 1000";
 
-	sprd,board_id = <0x2100>; //XX00:base board,XX00~XXFF:customize board
-
 	fragment {
 		target-path = "/";
 		__overlay__ {
@@ -128,12 +126,10 @@
 				voltage-min-design-microvolt = <3450000>;
 				fullbatt-voltage = <4300000>;
 				fullbatt-current = <120000>;
-				first-fullbatt-current = <150000>;
 				fullbatt-track-end-vol = <4295000>;
 				fullbatt-track-end-cur = <130000>;
 				first-calib-voltage = <3600000>;
 				first-calib-capacity = <40>;
-				batt-ovp-threshold-microvolt = <4800000>;
 
 				ocv-capacity-celsius = <20>;
 				ocv-capacity-table-0 = <4360000 100>, <4249000 95>, <4189000 90>,
@@ -151,54 +147,10 @@
 							<129000 1550>, <111000 1600>, <96000 1650>;
 				capacity-temp-table = <25 100>, <10 97>, <(-10) 60>;
 				resistance-temp-table = <20 100>, <10 243>, <(-10) 468>;
-
-				battery-internal-resistance-celsius = <(-20)>, <(-10)>, <0>, <10>,
-					<25>, <35>, <45>, <55>;
-				battery-internal-resistance-table-0 = <1224>, <1224>, <1140>,
-					<1084>, <1034>, <1001>, <994>, <992>, <992>, <992>,
-					<996>, <1002>, <1010>, <1024>, <1045>, <1072>, <1180>,
-					<1393>, <1756>, <2461>, <4272>;
-				battery-internal-resistance-table-1 = <893>, <893>, <818>, <767>,
-					<743>, <705>, <685>, <684>, <678>, <675>, <672>, <673>,
-					<679>, <691>, <709>, <734>, <765>, <799>, <839>, <899>,
-					<1092>;
-				battery-internal-resistance-table-2 = <407>, <407>, <402>, <423>,
-					<429>, <428>, <409>, <416>, <408>, <395>, <390>, <390>,
-					<393>, <398>, <405>, <416>, <431>, <452>, <492>, <585>,
-					<730>;
-				battery-internal-resistance-table-3 = <381>, <381>, <378>, <371>,
-					<366>, <374>, <358>, <364>, <349>, <332>, <327>, <329>,
-					<334>, <340>, <350>, <366>, <386>, <417>, <475>, <585>,
-					<771>;
-				battery-internal-resistance-table-4 = <182>, <182>, <179>, <179>,
-					<179>, <181>, <182>, <195>, <194>, <173>, <164>, <164>,
-					<167>, <171>, <175>, <174>, <172>, <179>, <187>, <244>,
-					<311>;
-				battery-internal-resistance-table-5 = <168>, <168>, <175>, <172>,
-					<171>, <171>, <173>, <184>, <176>, <153>, <147>, <147>,
-					<150>, <153>, <156>, <152>, <149>, <154>, <158>, <206>,
-					<255>;
-				battery-internal-resistance-table-6 = <123>, <123>, <122>, <122>,
-					<123>, <126>, <130>, <138>, <143>, <120>, <115>, <116>,
-					<119>, <124>, <129>, <120>, <117>, <119>, <117>, <139>,
-					<156>;
-				battery-internal-resistance-table-7 = <106>, <106>, <106>, <106>,
-					<108>, <110>, <113>, <119>, <128>, <107>, <104>, <105>,
-					<108>, <112>, <117>, <107>, <106>, <107>, <105>, <127>,
-					<140>;
-				battery-internal-resistance-ocv-table = <4339000>, <4276000>,
-					<4221000>, <4169000>, <4118000>, <4072000>, <4022000>,
-					<3983000>, <3942000>, <3892000>, <3857000>, <3833000>,
-					<3813000>, <3797000>, <3783000>, <3766000>, <3746000>,
-					<3723000>, <3693000>, <3680000>, <3439000>;
-
 				charge-sdp-current-microamp = <500000 500000>;
 				charge-dcp-current-microamp = <1150000 3000000>;
 				charge-cdp-current-microamp = <1150000 1150000>;
-				charge-unknown-current-microamp = <1050000 1050000>;
-
-				cap-calib-energy-density-ocv-table = <3350000 3800000>, <4150000 4350000>;
-				cap-track-energy-density-ocv-table = <3400000 3722000>;
+				charge-unknown-current-microamp = <500000 500000>;
 
 				dcp-jeita-temp-table = <1000 1030 0 4350000>, <1150 1180 700000 4350000>,
 					<1450 1420 1150000 4350000>, <1600 1570 700000 4100000>;
@@ -206,12 +158,12 @@
 					<1450 1420 500000 4350000>, <1600 1570 500000 4100000>;
 				cdp-jeita-temp-table = <1000 1030 0 4350000>, <1150 1180 700000 4350000>,
 					<1450 1420 1150000 4350000>, <1600 1570 700000 4100000>;
-				unknown-jeita-temp-table = <1000 1030 0 4350000>, <1150 1180 700000 4350000>,
-					<1450 1420 1050000 4350000>, <1600 1570 700000 4100000>;
+				unknown-jeita-temp-table = <1000 1030 0 4350000>, <1150 1180 500000 4350000>,
+					<1450 1420 500000 4350000>, <1600 1570 500000 4100000>;
+				force-jeita-status = <2>;
 			};
 
 			charger-manager {
-				status = "okay";
 				compatible = "charger-manager";
 				cm-name = "battery";
 				cm-poll-mode = <2>;
@@ -222,7 +174,7 @@
 				cm-fullbatt-vchkdrop-volt = <12000>;
 				cm-fullbatt-capacity = <100>;
 
-				cm-battery = "battery";
+				cm-num-chargers = <1>;
 				cm-chargers = "fan54015_charger";
 				cm-fuel-gauge = "sc27xx-fgu";
 
@@ -234,8 +186,6 @@
 
 				/* Allow charging for 6hr */
 				cm-charging-max = <18000000>;
-				/* recovery charging after stop charging 45min */
-				cm-discharging-max = <2700000>;
 
 				/* the interval to feed charger watchdog */
 				cm-wdt-interval = <60>;
@@ -260,8 +210,13 @@
 
 				cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
 
-				phys = <&hsphy>;
-
+				regulator@0 {
+					cm-regulator-name = "vddgen0";
+					cable@0 {
+						cm-cable-name = "USB";
+						extcon = <&pmic_typec>;
+					};
+				};
 			};
 
 			sprd_marlin3: sprd-marlin3 {
@@ -296,13 +251,14 @@
 				wlan {
 					compatible = "sprd,sc2355-sdio-wifi";
 				};
-
-				gnss {
-					compatible = "sprd,gnss";
-				};
 			};
 		};
 	};
+};
+
+&topdvfs_controller {
+	dcdc-modem-mm-share;
+	dcdc-modem-mm-share-en = <0x170 0>;
 };
 
 &thm_zone {
@@ -319,7 +275,7 @@
 
 &usb {
 	extcon = <&extcon_gpio>, <&pmic_typec>;
-	vbus-supply = <&vddvbus>;
+	status = "okay";
 };
 
 &reserved_memory {
@@ -330,16 +286,16 @@
 		reg = <0x0 0x9e000000 0x0 0x00384000>;
 	};
 
-	fd_reserved: face-mem@ffa70000{
-		reg = <0x0 0xffa70000 0x0 0x500000>;
+	fd_reserved: face-mem@be170000{
+		reg = <0x0 0xbe170000 0x0 0x01e00000>;
 	};
 };
 
 &ion {
 	#address-cells = <1>;
 	#size-cells = <0>;
-	heap@2 {
-		reg = <2>;
+	heap@4 {
+		reg = <4>;
 		label = "carveout_fd";
 		type = <2>;
 		memory-region = <&fd_reserved>;
@@ -369,7 +325,7 @@
 		csi = <&csi0>;
 		reset-gpios = <&ap_gpio 44 0>;
 		power-down-gpios = <&ap_gpio 46 0>;
-		power-domains = <&mm_domain>;
+
 		status = "okay";
 	};
 };
@@ -397,7 +353,7 @@
 		csi = <&csi1>;
 		reset-gpios = <&ap_gpio 41 0>;
 		power-down-gpios = <&ap_gpio 40 0>;
-		power-domains = <&mm_domain>;
+
 		status = "okay";
 	};
 
@@ -419,7 +375,7 @@
 		csi = <&csi1>;
 		reset-gpios = <&ap_gpio 45 0>;
 		power-down-gpios = <&ap_gpio 47 0>;
-		power-domains = <&mm_domain>;
+
 		status = "okay";
 	};
 };
@@ -478,6 +434,7 @@
 	fan54015_chg: charger@6a {
 		compatible = "fairchild,fan54015_chg";
 		reg = <0x6a>;
+		phys = <&hsphy>;
 		monitored-battery = <&bat>;
 		extcon = <&extcon_gpio>;
 		vddvbus:otg-vbus {
@@ -493,14 +450,6 @@
 
 	fgu-capacity-track;
 	phys = <&hsphy>;
-
-	sprd,relax-counter-threshold = <580>;
-	sprd,relax-current-threshold = <30>;
-	sprd,capacity-sleep-calibration;
-
-	sprd,capacity-boot-calibration;
-	sprd,capacity-charge-cycle;
-	sprd,basp;
 };
 
 &sdio0 {
@@ -518,8 +467,8 @@
 
 &ddr_dfs {
 	sprd-scene = "boost", "lcdon", "lcdoff", "camlow",
-		"camhigh", "camveryhigh", "dpu", "boot-opt", "top";
-	sprd-freq = <933 512 256 384 512 933 384 933 0xbacd>;
+		"camhigh", "camveryhigh", "dpu";
+	sprd-freq = <933 512 256 384 512 933 384>;
 };
 
 &adi_bus {
@@ -608,6 +557,66 @@
 
 &vddrf18 {
 	status = "disabled";
+};
+
+&dvfs_dcdc_cpu0_supply {
+	pmic-type-num = <0>;
+	top-dvfs-adi-state = <0x70 0 0xf>;
+	voltage-grade-num = <7>;
+	voltage-grade = <0 0xf0 0xf4 0 0x1ff>,
+			<1 0xf0 0xf4 9 0x1ff>,
+			<2 0x100 0xf4 18 0x1ff>,
+			<3 0x110 0xf8 0 0x1ff>,
+			<4 0x120 0xf8 9 0x1ff>,
+			<5 0x130 0xf8 18 0x1ff>,
+			<6 0x140 0xfc 0 0x1ff>;
+	voltage-up-delay = <50 0x58 0 0xffff 0x600>,
+			<100 0x58 16 0xffff 0xa00>,
+			<150 0x54 0 0xffff 0xf00>,
+			<200 0x54 16 0xffff 0x1400>,
+			<250 0x50 0 0xffff 0x1900>,
+			<300 0x50 16 0xffff 0x1e00>,
+			<350 0x110 0 0xffff 0x2300>;
+	voltage-down-delay = <50 0x64 0 0xffff 0x600>,
+			<100 0x64 16 0xffff 0xa00>,
+			<150 0x60 0 0xffff 0xf00>,
+			<200 0x60 16 0xffff 0x1400>,
+			<250 0x5c 0 0xffff 0x1900>,
+			<300 0x5c 16 0xffff 0x1e00>,
+			<350 0x114 0 0xffff 0x2300>;
+	tuning-latency-us = <0>;
+	chnl-in-i2c = <0>;
+	slew-rate = <9375>; /* 9375uV/us */
+};
+
+&dvfs_dcdc_cpu1_supply {
+	supply-type-sel = <0x120 0 0>;
+	pmic-type-num = <0>;
+	top-dvfs-adi-state = <0x9c 0 0xf>;
+	voltage-grade-num = <6>;
+	voltage-grade = <0 0xf0 0x100 0 0x1ff>,
+				<1 0x100 0x100 9 0x1ff>,
+				<2 0x110 0x100 18 0x1ff>,
+				<3 0x120 0x104 0 0x1ff>,
+				<4 0x130 0x104 9 0x1ff>,
+				<5 0x140 0x104 18 0x1ff>;
+	voltage-up-delay = <50 0x84 0 0xffff 0x600>,
+			<100 0x84 16 0xffff 0xa00>,
+			<150 0x80 0 0xffff 0xf00>,
+			<200 0x80 16 0xffff 0x1400>,
+			<250 0x7c 0 0xffff 0x1900>,
+			<300 0x7c 16 0xffff 0x1e00>,
+			<350 0x118 0 0xffff 0x2300>;
+	voltage-down-delay = <50 0x90 0 0xffff 0x600>,
+			<100 0x90 16 0xffff 0xa00>,
+			<150 0x8c 0 0xffff 0xf00>,
+			<200 0x8c 16 0xffff 0x1400>,
+			<250 0x88 0 0xffff 0x1900>,
+			<300 0x88 16 0xffff 0x1e00>,
+			<350 0x11c 0 0xffff 0x2300>;
+    tuning-latency-us = <0>;
+	chnl-in-i2c = <0>;
+	slew-rate = <9375>; /* 9375uV/us */
 };
 
 &dpu {

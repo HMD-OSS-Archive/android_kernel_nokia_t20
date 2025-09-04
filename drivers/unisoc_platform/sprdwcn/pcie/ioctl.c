@@ -284,11 +284,7 @@ static int pcie_cmd_proc(struct char_drv_info *dev, unsigned char *input,
 		sprintf(string, "bwrite bar=%d offset=0x%x value=0x%lx\n", bar,
 			offset, value);
 		WCN_INFO("do %s\n", string);
-		ret = pcie_bar_write(priv, bar, offset, (char *)(&value), 4);
-		if (ret < 0) {
-			WCN_INFO("pcie_bar_write err\n");
-			return -1;
-		}
+		pcie_bar_write(priv, bar, offset, (char *)(&value), 4);
 		replay->t = 0;
 		replay->l = strlen(string);
 		memcpy(replay->v, string, replay->l);

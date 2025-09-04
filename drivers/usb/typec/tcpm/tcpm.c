@@ -1881,8 +1881,7 @@ static void tcpm_pd_ctrl_request(struct tcpm_port *port,
 		switch (port->state) {
 		case SRC_READY:
 		case SNK_READY:
-			/* Currently not supported */
-			tcpm_queue_message(port, PD_MSG_CTRL_REJECT);
+			tcpm_set_state(port, VCONN_SWAP_ACCEPT, 0);
 			break;
 		default:
 			tcpm_queue_message(port, PD_MSG_CTRL_WAIT);
@@ -3113,7 +3112,11 @@ static void run_state_machine(struct tcpm_port *port)
 				       tcpm_try_src(port) ? SRC_TRY
 							  : SNK_ATTACHED,
 				       0);
+		else
+			/* Wait for VBUS, but not forever */
+			tcpm_set_state(port, PORT_RESET, PD_T_PS_SOURCE_ON);
 		break;
+
 	case SRC_TRY:
 		port->try_src_count++;
 		tcpm_set_cc(port, tcpm_rp_cc(port));
@@ -3670,7 +3673,6 @@ static void _tcpm_cc_change(struct tcpm_port *port, enum typec_cc_status cc1,
 			tcpm_set_state(port, SRC_ATTACH_WAIT, 0);
 		break;
 	case SRC_ATTACHED:
-	case SRC_STARTUP:
 	case SRC_SEND_CAPABILITIES:
 	case SRC_READY:
 		if (tcpm_port_is_disconnected(port) ||
@@ -3898,8 +3900,7 @@ static void _tcpm_pd_vbus_off(struct tcpm_port *port)
 	case SNK_TRYWAIT_DEBOUNCE:
 		break;
 	case SNK_ATTACH_WAIT:
-	case SNK_DEBOUNCED:
-		/* Do nothing, as TCPM is still waiting for vbus to reaach VSAFE5V to connect */
+		tcpm_set_state(port, SNK_UNATTACHED, 0);
 		break;
 
 	case SNK_NEGOTIATE_CAPABILITIES:

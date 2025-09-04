@@ -131,6 +131,7 @@ static void sdio_add_tx_list_head(struct list_head *tx_fail_list,
 				  int ac_index, int tx_count)
 {
 	struct sprd_msg *msg = NULL;
+	struct list_head *xmit_free_list;
 	struct list_head *head, *tail;
 	/* protect plist or send list*/
 	spinlock_t *lock;
@@ -140,6 +141,7 @@ static void sdio_add_tx_list_head(struct list_head *tx_fail_list,
 	if (!tx_fail_list)
 		return;
 	msg = list_first_entry(tx_fail_list, struct sprd_msg, list);
+	xmit_free_list = &msg->xmit_msg_list->to_free_list;
 	free_lock = &msg->xmit_msg_list->free_lock;
 	if (msg->msg_type != SPRD_TYPE_DATA) {
 		lock = &msg->msglist->busylock;
@@ -232,9 +234,6 @@ static int sdio_rx_handle(int chn, struct mbuf_t *head,
 		msg->fifo_id = chn;
 		msg->buffer_type = SPRD_DEFRAG_MEM;
 		msg->data = (void *)tail;
-
-		rx_mgmt->rx_chn = chn;
-		rx_mgmt->rx_handle_ns = ktime_get_boot_fast_ns();
 
 		sprd_queue_msg(msg, &rx_mgmt->rx_list);
 	}
@@ -822,21 +821,20 @@ int sc2355_hif_fill_msdu_dscr(struct sprd_vif *vif,
 	memset(dscr, 0x00, sizeof(struct tx_msdu_dscr));
 	dscr->common.type = (type == SPRD_TYPE_CMD ?
 			     SPRD_TYPE_CMD : SPRD_TYPE_DATA);
-/*remove unnecessary repeated assignment*/
-	//dscr->common.direction_ind = 0;
-	//dscr->common.need_rsp = 0;/*TODO*/
+	dscr->common.direction_ind = 0;
+	dscr->common.need_rsp = 0;/*TODO*/
 	dscr->common.interface = vif->ctx_id;
 	dscr->pkt_len = cpu_to_le16(skb->len - DSCR_LEN - dscr_rsvd);
 	dscr->offset = DSCR_LEN;
 /*TODO*/
-	//dscr->tx_ctrl.sw_rate = (is_special_data == 1 ? 1 : 0);
-	//dscr->tx_ctrl.wds = 0; /*TBD*/
-	//dscr->tx_ctrl.swq_flag = 0; /*TBD*/
-	//dscr->tx_ctrl.rsvd = 0; /*TBD*/
-	//dscr->tx_ctrl.next_buffer_type = 0;
-	//dscr->tx_ctrl.pcie_mh_readcomp = 0;
-	//dscr->buffer_info.msdu_tid = 0;
-	//dscr->buffer_info.mac_data_offset = 0;
+	dscr->tx_ctrl.sw_rate = (is_special_data == 1 ? 1 : 0);
+	dscr->tx_ctrl.wds = 0; /*TBD*/
+	dscr->tx_ctrl.swq_flag = 0; /*TBD*/
+	dscr->tx_ctrl.rsvd = 0; /*TBD*/
+	dscr->tx_ctrl.next_buffer_type = 0;
+	dscr->tx_ctrl.pcie_mh_readcomp = 0;
+	dscr->buffer_info.msdu_tid = 0;
+	dscr->buffer_info.mac_data_offset = 0;
 	dscr->sta_lut_index = lut_index;
 
 	if (skb->ip_summed == CHECKSUM_PARTIAL) {
@@ -971,7 +969,7 @@ int sc2355_tx_cmd_pop_list(int channel, struct mbuf_t *head,
 	struct tx_mgmt *tx_mgmt;
 	struct sprd_msg *pos_buf, *temp_buf;
 
-	pr_debug("%s yuanjiang x channel: %d, head: %p, tail: %p num: %d\n",
+	pr_debug("%s channel: %d, head: %p, tail: %p num: %d\n",
 		 __func__, channel, head, tail, num);
 
 	tx_mgmt = (struct tx_mgmt *)hif->tx_mgmt;
@@ -1292,8 +1290,6 @@ void sc2355_rx_work_queue(struct work_struct *work)
 	hif = rx_mgmt->hif;
 	priv = hif->priv;
 
-	rx_mgmt->rx_queue_ns = ktime_get_boot_fast_ns();
-
 	if (!hif->exit && !sprd_peek_msg(&rx_mgmt->rx_list))
 		sc2355_rx_process(rx_mgmt, NULL);
 
@@ -1467,7 +1463,7 @@ int sc2355_fc_get_send_num(struct sprd_hif *hif,
 			     shared_flow_num, data_num);
 			return -ENOMEM;
 		}
-		pr_debug("%s,mode:%d,e_n:%d,s_n:%d,d_n:%d,{%d,%d,%d,%d}\n",
+		pr_info("%s,mode:%d,e_n:%d,s_n:%d,d_n:%d,{%d,%d,%d,%d}\n",
 			__func__, mode, excusive_flow_num,
 			shared_flow_num, data_num,
 			tx_mgmt->color_num[0], tx_mgmt->color_num[1],

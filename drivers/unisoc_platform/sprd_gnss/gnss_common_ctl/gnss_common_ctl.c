@@ -247,7 +247,7 @@ static void gnss_tcxo_enable(void)
 
 	dev_err(dev, "%s M3l=[%d],L6=[%d]\n", __func__, isM3lite(), isQogirl6());
 
-	if ((isM3lite() == FALSE) || (isQogirl6() == FALSE)) {
+	if ((isM3lite() == FALSE) && (isQogirl6() == FALSE)) {
 		dev_err(dev, "%s not M3lite or L6\n", __func__);
 		return;
 	}
@@ -279,7 +279,7 @@ static void gnss_tcxo_disable(void)
 
 	dev_err(dev, "%s M3l=[%d],L6=[%d]\n", __func__, isM3lite(), isQogirl6());
 
-	if ((isM3lite() == FALSE) || (isQogirl6() == FALSE)) {
+	if ((isM3lite() == FALSE) && (isQogirl6() == FALSE)) {
 		dev_err(dev, "%s not M3lite or L6\n", __func__);
 		return;
 	}
@@ -399,8 +399,6 @@ static ssize_t gnss_subsys_store(struct device *dev,
 		gnss_common_ctl_dev.gnss_subsys = WCN_GNSS;
 	else if (set_value == WCN_GNSS_BD)
 		gnss_common_ctl_dev.gnss_subsys  = WCN_GNSS_BD;
-	else if (set_value == WCN_GNSS_GAL)
-		gnss_common_ctl_dev.gnss_subsys  = WCN_GNSS_GAL;
 	else
 		ret = -EINVAL;
 #endif
@@ -574,26 +572,12 @@ bool gnss_delay_ctl(void)
 }
 EXPORT_SYMBOL_GPL(gnss_delay_ctl);
 
-static ssize_t gnss_power_busy_show(struct device *dev,
-				 struct device_attribute *attr, char *buf)
-{
-	bool power_busy = 0;
-
-	power_busy = wcn_is_power_busy();
-	dev_info(dev, "%s wcn power busy %d\n", __func__, power_busy);
-
-	return scnprintf(buf, PAGE_SIZE, "%d\n", power_busy);
-}
-
-static DEVICE_ATTR_RO(gnss_power_busy);
-
 static struct attribute *gnss_common_ctl_attrs[] = {
 	&dev_attr_gnss_power_enable.attr,
 	&dev_attr_gnss_dump.attr,
 	&dev_attr_gnss_status.attr,
 	&dev_attr_gnss_subsys.attr,
 	&dev_attr_gnss_clktype.attr,
-	&dev_attr_gnss_power_busy.attr,
 	NULL,
 };
 

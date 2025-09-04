@@ -103,27 +103,9 @@ CONFIG_ANDROID_BINDER_IPC
 	[missing plat description] none
 	[function] vts require. Binder is used in Android for both communication
 		between processes, and remote method invocation.
-CONFIG_ANDROID_KABI_RESERVE
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_ANDROID_VENDOR_HOOKS
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
-CONFIG_ANDROID_VENDOR_OEM_DATA
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -1500,16 +1482,6 @@ CONFIG_ARM_SPRD_CPUFREQ_PUBLIC
 	[must] user
 	[missing plat description] none
 	[function] This include all SPRD cpufreq driver public data.
-CONFIG_ARM_SPRD_CPUFREQ_V2
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field] make
-	[subsys] cpufreq
-	[must] user
-	[missing plat description] none
-	[function] This driver enable hardware to adjust the voltage and frequency
-			automatically for DSU cluster and cores.
 CONFIG_ARM_SPRD_CPUIDLE
 	[arch] arm
 	[plat] pike2
@@ -1519,6 +1491,44 @@ CONFIG_ARM_SPRD_CPUIDLE
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_ARM_SPRD_HW_CPUFREQ
+	[arch] arm64
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] cpufreq
+	[must] user
+	[missing plat description] none
+	[function] Enable apcpu hardware dvfs function.
+CONFIG_ARM_SPRD_HW_CPUFREQ_ARCH_UMS512
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] cpufreq
+	[must] user
+	[missing plat description] none
+	[function] this driver enable hardware to adjust the voltage and frequency
+			automatically for DSU cluster and cores in sharkl5pro platorm.
+CONFIG_ARM_SPRD_HW_CPUFREQ_NORMAL
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] cpufreq
+	[must] user
+	[missing plat description] This plat don't have hwdvfs ip like sharkl5,roc1 and so on.
+	[function] Enable apcpu hardware dvfs function in sharkl5 family SOCs.
+CONFIG_ARM_SPRD_HW_CPUFREQ_SHARKL3
+	[arch] arm64
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] cpufreq
+	[must] user
+	[missing plat description] none
+	[function] this driver enable hardware to adjust the voltage and frequency
+			automatically for DSU cluster and cores in sharkl3 platorm.
 CONFIG_ARM_SPRD_SW_CPUFREQ
 	[arch] arm
 	[plat] pike2
@@ -1530,17 +1540,6 @@ CONFIG_ARM_SPRD_SW_CPUFREQ
 	[function] The driver works for scaling the voltage and frequency of cpu and
 		   cluster based on Regulator and clk functions independently. It also
                    support the Binning test for all current projects.
-CONFIG_ARM_SPRD_SW_CPUFREQ_MAXFREQ
-	[arch] arm
-	[plat] pike2
-	[missing plat] none
-	[field] make
-	[subsys] cpufreq
-	[must] user
-	[missing plat description] none
-	[function] The driver works for fixded maximum frequency of cpu on bootstage.
-		   After 60s, scale the voltage and frequency of cpu and cluster based on
-		   Regulator and clk functions independently.
 CONFIG_ARM_THUMB
 	[arch] arm
 	[plat] pike2
@@ -2582,15 +2581,6 @@ CONFIG_CC_HAS_ASM_GOTO
 	[must]
 	[missing plat description] none
 	[function]
-CONFIG_CC_HAS_ASM_GOTO_OUTPUT
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_CC_HAS_ASM_INLINE
 	[arch] all
 	[plat] all
@@ -2610,15 +2600,6 @@ CONFIG_CC_HAS_AUTO_VAR_INIT_PATTERN
 	[missing plat description] none
 	[function]
 CONFIG_CC_HAS_AUTO_VAR_INIT_ZERO
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
-CONFIG_CC_HAS_AUTO_VAR_INIT_ZERO_ENABLER
 	[arch] all
 	[plat] all
 	[missing plat] none
@@ -3096,11 +3077,13 @@ CONFIG_COMPAT_VDSO
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
-	[field]
-	[subsys]
-	[must]
+	[field] 	code
+	[subsys] core
+	[must] none
 	[missing plat description] none
-	[function]
+	[function] Place in the process address space of 32-bit applications an
+		   ELF shared object providing fast implementations of
+		   gettimeofday and clock_gettime.
 CONFIG_CONFIGFS_FS
 	[arch] all
 	[plat] all
@@ -3191,8 +3174,8 @@ CONFIG_CORESIGHT
 	[function] This function is used to enable coresight architecture.
 CONFIG_CORESIGHT_APETB
 	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
 	[field] make,code
 	[subsys] kernel core
 	[must] debug
@@ -4197,9 +4180,18 @@ CONFIG_CRYPTO_LIB_ARC4
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_CRYPTO_LIB_BLAKE2S
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
 CONFIG_CRYPTO_LIB_BLAKE2S_GENERIC
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4806,8 +4798,8 @@ CONFIG_DETECT_HUNG_TASK
 	[missing plat description] none
 	[function] Detect hung task.
 CONFIG_DEVFREQ_GOV_PASSIVE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4815,8 +4807,8 @@ CONFIG_DEVFREQ_GOV_PASSIVE
 	[missing plat description] none
 	[function]
 CONFIG_DEVFREQ_GOV_PERFORMANCE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4824,8 +4816,8 @@ CONFIG_DEVFREQ_GOV_PERFORMANCE
 	[missing plat description] none
 	[function]
 CONFIG_DEVFREQ_GOV_POWERSAVE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4842,8 +4834,8 @@ CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND
 	[missing plat description] none
 	[function] Support gpu dfs/dvfs logic.
 CONFIG_DEVFREQ_GOV_SPRD_VOTE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4851,8 +4843,8 @@ CONFIG_DEVFREQ_GOV_SPRD_VOTE
 	[missing plat description] none
 	[function] for DDR dfs governor
 CONFIG_DEVFREQ_GOV_USERSPACE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4860,8 +4852,8 @@ CONFIG_DEVFREQ_GOV_USERSPACE
 	[missing plat description] none
 	[function]
 CONFIG_DEVFREQ_SPRD_DDR_DVFS
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -4869,8 +4861,8 @@ CONFIG_DEVFREQ_SPRD_DDR_DVFS
 	[missing plat description] none
 	[function] for DDR dfs governor
 CONFIG_DEVFREQ_SPRD_DDR_DVFS_SP
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -5248,15 +5240,51 @@ CONFIG_DRM_RCAR_WRITEBACK
 	[must]
 	[missing plat description] none
 	[function]
-CONFIG_DRM_SPRD_GSP_DVFS
+CONFIG_DRM_SPRD
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make
+	[subsys] drm
+	[must] home
+	[missing plat description] none
+	[function] CONFIG_DRM_SPRD is used to enable compile drm module.
+CONFIG_DRM_SPRD_DPU0
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
+CONFIG_DRM_SPRD_DSI
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
+CONFIG_DRM_SPRD_GSP
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make,code
+	[subsys] drm
+	[must] home
+	[missing plat description] none
+	[function] DRM_SPRD_GSP is used for enable gsp.
+CONFIG_DRM_SPRD_GSP_IPC_TRUSTY
 	[arch] arm64
 	[plat] sharkl5Pro
 	[missing plat] sharkl3
 	[field] make,code
 	[subsys] drm
 	[must] home
-	[missing plat description] support for qogirn6pro.
-	[function] DRM_SPRD_GSP_DVFS is used for enable gsp dvfs.
+	[missing plat description] support after l5pro SoC.
+	[function] DRM_SPRD_GSP_IPC_TRUSTY is used for enable gsp widevine.
 CONFIG_DRM_TTM
 	[arch] all
 	[plat] all
@@ -5521,24 +5549,6 @@ CONFIG_ENABLE_MUST_CHECK
 	[must] console
 	[missing plat description] none
 	[function] Enable __must_check logic.
-CONFIG_ENABLE_SPRD_DEEP_SLEEP_TRACING
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function] This function is used to enable sprd deep sleep tracing.
-CONFIG_ENABLE_SPRD_IO_TRACING
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field] make,code
-	[subsys] soc
-	[must] user
-	[missing plat description] none
-	[function] This function is used to enable IO tracing feature.
 CONFIG_ENCRYPTED_KEYS
 	[arch] arm
 	[plat] pike2
@@ -5786,8 +5796,8 @@ CONFIG_E_SHOW_MEM
 	[missing plat description] none
 	[function] show enhanced meminfo.
 CONFIG_F2FS_CHECK_FS
-	[arch] all
-	[plat] all
+	[arch] arm
+	[plat] pike2
 	[missing plat] none
 	[field] code
 	[subsys] fs
@@ -6138,6 +6148,15 @@ CONFIG_FORCE_MAX_ZONEORDER
 	[must] home
 	[missing plat description] none
 	[function] Enable to allocate large continuous physical pages.
+CONFIG_FORTIFY_SOURCE
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
 CONFIG_FRAME_POINTER
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
@@ -6494,11 +6513,13 @@ CONFIG_GENERIC_COMPAT_VDSO
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
-	[field]
-	[subsys]
-	[must]
+	[field] code
+	[subsys] core
+	[must] none
 	[missing plat description] none
-	[function]
+	[function] Place in the process address space of 32-bit applications an
+		   ELF shared object providing fast implementations of
+		   gettimeofday and clock_gettime.
 CONFIG_GENERIC_CPU_AUTOPROBE
 	[arch] all
 	[plat] all
@@ -6509,8 +6530,8 @@ CONFIG_GENERIC_CPU_AUTOPROBE
 	[missing plat description] none
 	[function] Enable kernel support cpu auto probe.
 CONFIG_GENERIC_CPU_VULNERABILITIES
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] code
 	[subsys] core
@@ -7069,15 +7090,6 @@ CONFIG_HARDENED_USERCOPY
 	[missing plat description] none
 	[function] vts require, Harden memory copies between kernel and userspace
 CONFIG_HARDENED_USERCOPY_FALLBACK
-	[arch] arm
-	[plat] pike2
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
-CONFIG_HARDEN_BRANCH_HISTORY
 	[arch] arm
 	[plat] pike2
 	[missing plat] none
@@ -8274,8 +8286,8 @@ CONFIG_HID_PICOLCD
 	[missing plat description] none
 	[function] PicoLCD (graphic version)
 CONFIG_HID_PLANTRONICS
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -8283,8 +8295,8 @@ CONFIG_HID_PLANTRONICS
 	[missing plat description] none
 	[function]
 CONFIG_HID_PLAYSTATION
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] menu,make
 	[subsys] hid
@@ -9267,13 +9279,22 @@ CONFIG_ION
 	[function] An memory allocator for android.
 CONFIG_ION_CMA_HEAP
 	[arch] arm64
-	[plat] sharkl3
-	[missing plat] sharkl5Pro
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
 	[field]
 	[subsys]
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_ION_SPRD
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make,code
+	[subsys] ion
+	[must] user
+	[missing plat description] none
+	[function] This macro is to enable sprd-specific ion features.
 CONFIG_ION_SYSTEM_HEAP
 	[arch] all
 	[plat] all
@@ -10423,15 +10444,6 @@ CONFIG_LIBNVDIMM
 	[must] user
 	[missing plat description] none
 	[function] NVDIMM (Non-Volatile Memory Device) Support.
-CONFIG_LIB_MEMNEQ
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_LIRC
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
@@ -11017,15 +11029,6 @@ CONFIG_MISC_FILESYSTEMS
 	[missing plat description] none
 	[function] Miscellaneous filesystems support. This option alone
 	   does not add any kernel code. Sdcardfs/ubifs need this.
-CONFIG_MITIGATE_SPECTRE_BRANCH_HISTORY
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_MMC
 	[arch] all
 	[plat] all
@@ -11054,8 +11057,8 @@ CONFIG_MMC_BLOCK_MINORS
 	[missing plat description] none
 	[function] Number of minors per block device
 CONFIG_MMC_CRYPTO
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -13843,8 +13846,8 @@ CONFIG_PERF_USE_VMALLOC
 	[missing plat description] none
 	[function] Enable kernel support Performance Counters for Linux.
 CONFIG_PGO_NONE
-	[arch] all
-	[plat] all
+	[arch] arm
+	[plat] pike2
 	[missing plat] none
 	[field] code
 	[subsys] core
@@ -13982,8 +13985,8 @@ CONFIG_PKCS7_MESSAGE_PARSER
 	[missing plat description] none
 	[function] Support PKCS7_MESSAGE_PARSER.
 CONFIG_PLAYSTATION_FF
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] menu,make
 	[subsys] hid
@@ -14027,8 +14030,8 @@ CONFIG_PM_DEVFREQ
 	[missing plat description] none
 	[function] Generic Dynamic Voltage and Frequency Scaling (DVFS) support
 CONFIG_PM_DEVFREQ_EVENT
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -14450,8 +14453,8 @@ CONFIG_PROBE_EVENTS
 	[missing plat description] none
 	[function] trace probe status bit
 CONFIG_PROCESS_RECLAIM
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -14730,15 +14733,6 @@ CONFIG_RANDOMIZE_BASE
 	[must] console
 	[missing plat description] none
 	[function] Randomize the address of the kernel image.
-CONFIG_RANDOM_TRUST_BOOTLOADER
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_RAS
 	[arch] all
 	[plat] all
@@ -14758,15 +14752,6 @@ CONFIG_RATIONAL
 	[missing plat description] none
 	[function] Calculate best rational approximation for a given fraction
 		taking into account restricted register size.
-CONFIG_RCC
-	[arch] arm
-	[plat] pike2
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_RCU_CPU_STALL_TIMEOUT
 	[arch] all
 	[plat] all
@@ -14922,6 +14907,15 @@ CONFIG_REED_SOLOMON_ENC8
 	[must] user
 	[missing plat description] none
 	[function] CtsLiblogTestCases testcase needed
+CONFIG_REFCOUNT_FULL
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
 CONFIG_REGMAP
 	[arch] all
 	[plat] all
@@ -15030,15 +15024,6 @@ CONFIG_REGULATOR_SC2730
 	[must] user
 	[missing plat description] SC2730 is used in roc1,sharkl5 and sharkl5pro so far
 	[function] SUPPORT SC2730 regulator function.
-CONFIG_REGULATOR_UMP518
-	[arch] arm64
-	[plat] sharkl5Pro,qogirl6
-	[missing plat] qogirn6pro
-	[field] make
-	[subsys] regulator
-	[must] user
-	[missing plat description] UMP518 is used in qogirl6.
-	[function] SUPPORT UMP518 regulator function.
 CONFIG_RELAY
 	[arch] arm
 	[plat] pike2
@@ -15959,15 +15944,6 @@ CONFIG_SHMEM
 	[must] busybo_console
 	[missing plat description] none
 	[function] Use full shmem filesystem.
-CONFIG_SHOW_UREGS_WITH_PHYSICAL
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_SHUFFLE_PAGE_ALLOCATOR
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
@@ -16296,6 +16272,150 @@ CONFIG_SND_SOC_TOPOLOGY
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_SND_SOC_UNISOC
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] none
+	[function] unisoc sound soc code
+CONFIG_SND_SOC_UNISOC_AUDIO_DMAENGINE
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] dma platform
+CONFIG_SND_SOC_UNISOC_AUDIO_TWO_STAGE_DMAENGINE
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] 2 stage dma platform
+CONFIG_SND_SOC_UNISOC_CODEC_DUMMY
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] none
+	[function] dummy codec
+CONFIG_SND_SOC_UNISOC_CODEC_SC2721
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] sc2721 codec driver code
+CONFIG_SND_SOC_UNISOC_CODEC_SC2730
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] sc2730 codec driver code
+CONFIG_SND_SOC_UNISOC_I2S
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] i2s driver code
+CONFIG_SND_SOC_UNISOC_I2S_DUMMY
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] dummy i2s driver code
+CONFIG_SND_SOC_UNISOC_PA_UCP1301
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] ucp1301 driver code
+CONFIG_SND_SOC_UNISOC_PIKE2
+	[arch] arm
+	[plat] pike2
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
+CONFIG_SND_SOC_UNISOC_R1P0V3_SC2721
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] sc2721 codec and r1p0v3 vbc platform
+CONFIG_SND_SOC_UNISOC_SHARKL3
+	[arch] arm64
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
+	[field] make,code
+	[subsys] sound
+	[must] user
+	[missing plat description] not match
+	[function] sharkl3 soc platform
+CONFIG_SND_SOC_UNISOC_VAUDIO
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] vaudio driver code
+CONFIG_SND_SOC_UNISOC_VBC_R1P0V3
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] r1p0v3 vbc driver code
+CONFIG_SND_SOC_UNISOC_VBC_V4
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] v4 vbc driver code
+CONFIG_SND_SOC_UNISOC_VBC_V4_SC2730
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] sc2730 codec and v4 vbc platform
 CONFIG_SND_SPI
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
@@ -16577,15 +16697,6 @@ CONFIG_SPRD_APB_BUSMONITOR
 	[must] debug
 	[missing plat description] missing plat don't use this IP
 	[function] Enable APB busmonitor function
-CONFIG_SPRD_APB_PROT
-	[arch] arm64
-	[plat] sharkl5Pro
-	[missing plat] sharkl3
-	[field]
-	[subsys]
-	[must]
-	[missing plat description]
-	[function]
 CONFIG_SPRD_AUTOTEST
 	[arch] all
 	[plat] all
@@ -16596,8 +16707,8 @@ CONFIG_SPRD_AUTOTEST
 	[missing plat description] none
 	[function] Support Spreadtrum autotest
 CONFIG_SPRD_AUTOTEST_GPIO
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] menu,make
 	[subsys] soc
@@ -16605,8 +16716,8 @@ CONFIG_SPRD_AUTOTEST_GPIO
 	[missing plat description] none
 	[function] Spreadtrum gpio autotest support
 CONFIG_SPRD_AUTOTEST_PINCTRL
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] menu,make,code
 	[subsys] soc
@@ -16631,6 +16742,15 @@ CONFIG_SPRD_CACHE_EFUSE
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_SPRD_CAMSYS_PW_DOMAIN
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field]
+	[subsys]
+	[must]
+	[missing plat description] none
+	[function]
 CONFIG_SPRD_CMA_DEBUG
 	[arch] all
 	[plat] all
@@ -16650,8 +16770,8 @@ CONFIG_SPRD_COMMON_CLK
 	[missing plat description] none
 	[function] This function is used to enable sprd common clock driver.
 CONFIG_SPRD_CORE_CTL
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] make,code
 	[subsys] sched
@@ -16659,8 +16779,8 @@ CONFIG_SPRD_CORE_CTL
 	[missing plat description] none
 	[function] similar effect as hotplug but at lower latency cost
 CONFIG_SPRD_CORE_ISOLATION
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] make,code
 	[subsys] sched
@@ -16912,6 +17032,15 @@ CONFIG_SPRD_IRQS_MONITOR
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_SPRD_JPG
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] menu,make,code
+	[subsys] misc
+	[must] user
+	[missing plat description] none
+	[function] The JPG is the hardware accelerator for jpeg standard image compression.
 CONFIG_SPRD_LOOK_AT
 	[arch] all
 	[plat] all
@@ -17002,15 +17131,15 @@ CONFIG_SPRD_NET_HELPER
 	[must]
 	[missing plat description] none
 	[function]
-CONFIG_SPRD_PAST_RECORD
-	[arch] all
-	[plat] all
+CONFIG_SPRD_PIKE2_POWER_DEBUG
+	[arch] arm
+	[plat] pike2
 	[missing plat] none
-	[field] make,code
-	[subsys] soc
-	[must] user
+	[field]
+	[subsys]
+	[must]
 	[missing plat description] none
-	[function] This function is used to enable sprd tracing code.
+	[function]
 CONFIG_SPRD_PIKE2_SLEEP
 	[arch] arm
 	[plat] pike2
@@ -17029,18 +17158,9 @@ CONFIG_SPRD_PIKE2_USB2_PHY
 	[must]
 	[missing plat description] none
 	[function]
-CONFIG_SPRD_PMIC_SMPL
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_SPRD_PMIC_SYSCON
-	[arch] all
-	[plat] pike2,sharkl5Pro
+	[arch] arm64
+	[plat] sharkl5Pro
 	[missing plat] sharkl3
 	[field]
 	[subsys]
@@ -17057,9 +17177,27 @@ CONFIG_SPRD_POWER_DEBUG
 	[missing plat description] none
 	[function]
 CONFIG_SPRD_POWER_STAT
-	[arch] all
-	[plat] all
-	[missing plat] none
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] debug
+	[must] debug
+	[missing plat description] none
+	[function]
+CONFIG_SPRD_POWER_STAT_CORE
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] debug
+	[must] debug
+	[missing plat description] none
+	[function]
+CONFIG_SPRD_POWER_STAT_SHARKL5PRO
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
 	[field] make
 	[subsys] debug
 	[must] debug
@@ -17075,9 +17213,9 @@ CONFIG_SPRD_PTM
 	[missing plat description] none
 	[function] Support Spreadtrum PTM.
 CONFIG_SPRD_ROTATION_TASK
-	[arch] all
-	[plat] all
-	[missing plat] none
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
 	[field]
 	[subsys]
 	[must]
@@ -17102,15 +17240,15 @@ CONFIG_SPRD_SC9863A_CLK
 	[missing plat description] CONFIG_SPRD_SC9863A_CLK is only for sharkl3 platform and other
 				   projects have their own driver.
 	[function] This function is used to enable sharkl3 platform clock driver.
-CONFIG_SPRD_SENSOR_HUB_NEW
+CONFIG_SPRD_SENSOR_HUB
 	[arch] arm64
 	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] make
 	[subsys] iio
-	[must] user debug
+	[must] user
 	[missing plat description] none
-	[function] enable sensor hub driver new built in kernel
+	[function] enable sensor hub driver built in kernel
 CONFIG_SPRD_SFP_SUPPORT
 	[arch] all
 	[plat] all
@@ -17119,6 +17257,15 @@ CONFIG_SPRD_SFP_SUPPORT
 	[subsys]
 	[must]
 	[missing plat description] none
+	[function]
+CONFIG_SPRD_SHARKL3_POWER_DEBUG
+	[arch] arm64
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
+	[field]
+	[subsys]
+	[must]
+	[missing plat description]
 	[function]
 CONFIG_SPRD_SHARKL3_USB2_PHY
 	[arch] arm64
@@ -17129,6 +17276,15 @@ CONFIG_SPRD_SHARKL3_USB2_PHY
 	[must] user
 	[missing plat description] just for sharkl3 USB PHY.
 	[function] sharkl3 USB phy
+CONFIG_SPRD_SHARKL5PRO_POWER_DEBUG
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field]
+	[subsys]
+	[must]
+	[missing plat description]
+	[function]
 CONFIG_SPRD_SHARKL5PRO_USB2_PHY
 	[arch] arm64
 	[plat] sharkl5Pro
@@ -17229,8 +17385,8 @@ CONFIG_SPRD_SIPC_ZERO_COPY_SIPX
 	[missing plat description] none
 	[function] This function is used to enable sipx function between modem and AP.
 CONFIG_SPRD_SIP_FW
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] make,code
 	[subsys] firmware
@@ -17238,15 +17394,6 @@ CONFIG_SPRD_SIP_FW
 	[missing plat description] none
 	[function] Provides interfaces to SoC implementation-specific secure
 	           services.
-CONFIG_SPRD_SOCID
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field] make,code
-	[subsys] misc
-	[must] user
-	[missing plat description] none
-	[function] Support read socid only
 CONFIG_SPRD_SOC_THERMAL
 	[arch] arm64
 	[plat] sharkl5Pro
@@ -17304,8 +17451,8 @@ CONFIG_SPRD_THERMAL_MAX_FREQ_LIMIT
 	[missing plat description] none
 	[function] be used to limit the max frequency
 CONFIG_SPRD_THERMAL_POLICY
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] make
 	[subsys] thermal
@@ -17405,14 +17552,32 @@ CONFIG_SPRD_USB_U_ETHER
 	[missing plat description] none
 	[function]
 CONFIG_SPRD_USERLOG
-	[arch] all
-	[plat] all
-	[missing plat] none
+	[arch] arm64
+	[plat] sharkl3
+	[missing plat] sharkl5Pro
 	[field] code,make
 	[subsys] debug
 	[must] user
-	[missing plat description] none
+	[missing plat description] supply userlog dev feature for sharkl3
 	[function] Create userlog dev driver
+CONFIG_SPRD_VSP
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make,code,menu
+	[subsys] misc
+	[must] user
+	[missing plat description] none
+	[function] The VSP is a video CODEC accelerator.
+CONFIG_SPRD_VSP_PW_DOMAIN
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make,code,menu
+	[subsys] misc
+	[must] user
+	[missing plat description] none
+	[function] power on vsp domain.
 CONFIG_SPRD_WATCHDOG
 	[arch] all
 	[plat] pike2,sharkl3
@@ -17458,6 +17623,15 @@ CONFIG_SPRD_WLAN_VENDOR_SPECIFIC
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_SPRD_ZS_PAGE_MIGRATE
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] code
+	[subsys] core
+	[must] console
+	[missing plat description] none
+	[function] avoid zs_page migrate to cma_page
 CONFIG_SRCU
 	[arch] all
 	[plat] all
@@ -17620,15 +17794,6 @@ CONFIG_SUSPEND_FREEZER
 	[must] user
 	[missing plat description] none
 	[function] Enable freezer for suspend to RAM/standby.
-CONFIG_SUSPEND_SKIP_SYNC
-	[arch] all
-	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
 CONFIG_SWAP
 	[arch] all
 	[plat] all
@@ -17977,8 +18142,8 @@ CONFIG_THERMAL_EMERGENCY_POWEROFF_DELAY_MS
 	[missing plat description] none
 	[function] set emergency poweroff delay time
 CONFIG_THERMAL_EMULATION
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -18325,15 +18490,6 @@ CONFIG_TRUSTY_LOG
 	[must] debug
 	[missing plat description] none
 	[function] This is used to dump trusty OS log and output to kernel log
-CONFIG_TRUSTY_TUI
-	[arch] arm64
-	[plat] sharkl3,sharkl5Pro
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function] This implements trusty tui driver which is used to deal with conficts of ree tp/display access
 CONFIG_TRUSTY_VIRTIO
 	[arch] all
 	[plat] all
@@ -18444,8 +18600,8 @@ CONFIG_UBSAN_TRAP
 	[missing plat description] none
 	[function]
 CONFIG_UCLAMP_BUCKETS_COUNT
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -18453,8 +18609,8 @@ CONFIG_UCLAMP_BUCKETS_COUNT
 	[missing plat description] none
 	[function]
 CONFIG_UCLAMP_TASK
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -18462,8 +18618,8 @@ CONFIG_UCLAMP_TASK
 	[missing plat description] none
 	[function]
 CONFIG_UCLAMP_TASK_GROUP
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -18578,6 +18734,78 @@ CONFIG_UNINLINE_SPIN_UNLOCK
 	[must] console
 	[missing plat description] none
 	[function] vts require, Enable uninlie spin.
+CONFIG_UNISOC_AUDIO_AGDSP_ACCESS
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] agdsp access driver
+CONFIG_UNISOC_AUDIO_CPBOOT
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] cpboot driver code
+CONFIG_UNISOC_AUDIO_DSP_DUMP
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] dsp dump driver code
+CONFIG_UNISOC_AUDIO_MCDT
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] mcdt driver code
+CONFIG_UNISOC_AUDIO_MEMORY_MANAGER
+	[arch] all
+	[plat] all
+	[missing plat] none
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] none
+	[function] audio memory manager driver code
+CONFIG_UNISOC_AUDIO_PIPE
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] none
+	[function] audio pipe driver code
+CONFIG_UNISOC_AUDIO_SAUDIO
+	[arch] all
+	[plat] pike2,sharkl3
+	[missing plat] sharkl5Pro
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] saudio driver code
+CONFIG_UNISOC_AUDIO_SIPC
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] sipc driver code
 CONFIG_UNISOC_GNSS
 	[arch] all
 	[plat] all
@@ -18614,6 +18842,15 @@ CONFIG_UNISOC_GNSS_PMNOTIFY_CTL
 	[must]
 	[missing plat description] none
 	[function]
+CONFIG_UNISOC_HW_DEVICE_DVFS_AGCP
+	[arch] arm64
+	[plat] sharkl5Pro
+	[missing plat] sharkl3
+	[field] make
+	[subsys] sound
+	[must] user
+	[missing plat description] not used
+	[function] dvfs agcp driver code
 CONFIG_UNISOC_IOMMU
 	[arch] all
 	[plat] all
@@ -18642,8 +18879,8 @@ CONFIG_UNISOC_MAILBOX_R1
 	[missing plat description] none
 	[function]
 CONFIG_UNISOC_MAPUSER
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -18653,15 +18890,6 @@ CONFIG_UNISOC_MAPUSER
 CONFIG_UNISOC_MODEM_LOADER
 	[arch] all
 	[plat] all
-	[missing plat] none
-	[field]
-	[subsys]
-	[must]
-	[missing plat description] none
-	[function]
-CONFIG_UNISOC_MODEM_LOADER_RAM_VMAP
-	[arch] arm
-	[plat] pike2
 	[missing plat] none
 	[field]
 	[subsys]
@@ -19428,8 +19656,8 @@ CONFIG_USB_XHCI_PLATFORM
 	[missing plat description] none
 	[function]
 CONFIG_USERFAULTFD
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field]
 	[subsys]
@@ -19445,6 +19673,15 @@ CONFIG_USE_OF
 	[must] console
 	[missing plat description] none
 	[function] Flattened Device Tree support.
+CONFIG_USE_PROFILE
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
+	[field] code
+	[subsys] core
+	[must] none
+	[missing plat description] none
+	[function] use profile to guide kernel compilation.
 CONFIG_UTS_NS
 	[arch] all
 	[plat] all
@@ -19976,8 +20213,8 @@ CONFIG_WQ_POWER_EFFICIENT_DEFAULT
 	[missing plat description] none
 	[function] power efficient work queue
 CONFIG_WRITEBACK_SWAPCACHE
-	[arch] all
-	[plat] all
+	[arch] arm64
+	[plat] sharkl3,sharkl5Pro
 	[missing plat] none
 	[field] mm
 	[subsys] swap
@@ -20031,8 +20268,8 @@ CONFIG_XFRM_ALGO
 	[function] support for xfrm algorithum
 CONFIG_XFRM_FRAGMENT
 	[arch] arm64
-	[plat] sharkl3
-	[missing plat] sharkl5Pro
+	[plat] sharkl3,sharkl5Pro
+	[missing plat] none
 	[field] menu
 	[subsys] net
 	[must] user

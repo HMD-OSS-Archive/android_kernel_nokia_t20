@@ -34,6 +34,8 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/types.h>
+#include <linux/usb/phy.h>
+#include <uapi/linux/usb/charger.h>
 
 #define BQ25890_REG_00				0x00
 #define BQ25890_REG_01				0x01
@@ -498,12 +500,14 @@ struct bq25890_charge_current {
 struct bq25890_charger_info {
 	struct i2c_client *client;
 	struct device *dev;
+	struct usb_phy *usb_phy;
+	struct notifier_block usb_notify;
 	struct power_supply *psy_usb;
 	struct bq25890_charge_current cur;
+	struct work_struct work;
 	struct mutex lock;
-	struct mutex input_limit_cur_lock;
 	bool charging;
-	bool is_charger_online;
+	u32 limit;
 	struct delayed_work otg_work;
 	struct delayed_work wdt_work;
 	struct regmap *pmic;
@@ -511,6 +515,7 @@ struct bq25890_charger_info {
 	u32 charger_pd;
 	u32 charger_pd_mask;
 	struct gpio_desc *gpiod;
+	struct extcon_dev *edev;
 	u32 last_limit_current;
 	u32 role;
 	bool need_disable_Q1;
@@ -554,7 +559,8 @@ static struct bq25890_charger_reg_tab reg_tab[BQ25890_REG_NUM + 1] = {
 	{21, 0, "null"},
 };
 
-static int bq25890_charger_set_limit_current(struct bq25890_charger_info *info, u32 limit_cur);
+static int bq25890_charger_set_limit_current(struct bq25890_charger_info *info,
+					     u32 limit_cur);
 
 static int bq25890_read(struct bq25890_charger_info *info, u8 reg, u8 *data)
 {
@@ -766,14 +772,15 @@ static int bq25890_charger_hw_init(struct bq25890_charger_info *info)
 		return ret;
 	}
 
-	ret = bq25890_charger_set_limit_current(info, info->cur.unknown_cur, false);
+	ret = bq25890_charger_set_limit_current(info, info->cur.unknown_cur);
 	if (ret)
 		dev_err(info->dev, "set bq25890 limit current failed\n");
 
 	return ret;
 }
 
-static int bq25890_charger_get_charge_voltage(struct bq25890_charger_info *info, u32 *charge_vol)
+static int bq25890_charger_get_charge_voltage(struct bq25890_charger_info *info,
+					      u32 *charge_vol)
 {
 	struct power_supply *psy;
 	union power_supply_propval val;
@@ -823,7 +830,7 @@ static int bq25890_charger_start_charge(struct bq25890_charger_info *info)
 		}
 
 	ret = bq25890_charger_set_limit_current(info,
-						info->last_limit_current, false);
+						info->last_limit_current);
 	if (ret) {
 		dev_err(info->dev, "failed to set limit current\n");
 		return ret;
@@ -861,7 +868,8 @@ static void bq25890_charger_stop_charge(struct bq25890_charger_info *info, bool 
 
 }
 
-static int bq25890_charger_set_current(struct bq25890_charger_info *info, u32 cur)
+static int bq25890_charger_set_current(struct bq25890_charger_info *info,
+				       u32 cur)
 {
 	u8 reg_val;
 	int ret;
@@ -878,7 +886,8 @@ static int bq25890_charger_set_current(struct bq25890_charger_info *info, u32 cu
 	return ret;
 }
 
-static int bq25890_charger_get_current(struct bq25890_charger_info *info, u32 *cur)
+static int bq25890_charger_get_current(struct bq25890_charger_info *info,
+				       u32 *cur)
 {
 	u8 reg_val;
 	int ret;
@@ -893,7 +902,40 @@ static int bq25890_charger_get_current(struct bq25890_charger_info *info, u32 *c
 	return 0;
 }
 
-static u32 bq25890_charger_get_limit_current(struct bq25890_charger_info *info, u32 *limit_cur)
+static int bq25890_charger_set_limit_current(struct bq25890_charger_info *info,
+					     u32 limit_cur)
+{
+	u8 reg_val;
+	int ret;
+
+	ret = bq25890_update_bits(info, BQ25890_REG_00, REG00_EN_ILIM_MASK,
+				  REG00_EN_ILIM_DISABLE);
+	if (ret) {
+		dev_err(info->dev, "disable en_ilim failed\n");
+		return ret;
+	}
+
+	limit_cur = limit_cur / 1000;
+	if (limit_cur >= REG00_IINLIM_MAX)
+		limit_cur = REG00_IINLIM_MAX;
+	if (limit_cur <= REG00_IINLIM_MIN)
+		limit_cur = REG00_IINLIM_MIN;
+
+	info->last_limit_current = limit_cur * 1000;
+	reg_val = (limit_cur - REG00_IINLIM_OFFSET) / REG00_IINLIM_STEP;
+
+	ret = bq25890_update_bits(info, BQ25890_REG_00, REG00_IINLIM_MASK, reg_val);
+	if (ret)
+		dev_err(info->dev, "set bq25890 limit cur failed\n");
+
+	info->actual_limit_current =
+		(reg_val * REG00_IINLIM_STEP + REG00_IINLIM_OFFSET) * 1000;
+
+	return ret;
+}
+
+static u32 bq25890_charger_get_limit_current(struct bq25890_charger_info *info,
+					     u32 *limit_cur)
 {
 	u8 reg_val;
 	int ret;
@@ -912,65 +954,29 @@ static u32 bq25890_charger_get_limit_current(struct bq25890_charger_info *info, 
 	return 0;
 }
 
-static int bq25890_charger_set_limit_current(struct bq25890_charger_info *info,
-					     u32 limit_cur, bool enable)
-{
-	u8 reg_val;
-	int ret = 0;
-
-	mutex_lock(&info->input_limit_cur_lock);
-	if (enable) {
-		ret = bq25890_charger_get_limit_current(info, &limit_cur);
-		if (ret) {
-			dev_err(info->dev, "get limit cur failed\n");
-			goto out;
-		}
-
-		if (limit_cur == info->actual_limit_cur)
-			goto out;
-	}
-
-	ret = bq25890_update_bits(info, BQ25890_REG_00, REG00_EN_ILIM_MASK,
-				  REG00_EN_ILIM_DISABLE);
-	if (ret) {
-		dev_err(info->dev, "disable en_ilim failed\n");
-		goto out;
-	}
-
-	limit_cur = limit_cur / 1000;
-	if (limit_cur >= REG00_IINLIM_MAX)
-		limit_cur = REG00_IINLIM_MAX;
-	if (limit_cur <= REG00_IINLIM_MIN)
-		limit_cur = REG00_IINLIM_MIN;
-
-	info->last_limit_current = limit_cur * 1000;
-	reg_val = (limit_cur - REG00_IINLIM_OFFSET) / REG00_IINLIM_STEP;
-	info->actual_limit_current =
-		(reg_val * REG00_IINLIM_STEP + REG00_IINLIM_OFFSET) * 1000;
-	ret = bq25890_update_bits(info, BQ25890_REG_00, REG00_IINLIM_MASK, reg_val);
-	if (ret)
-		dev_err(info->dev, "set bq25890 limit cur failed\n");
-
-	dev_info(info->dev, "set limit current reg_val = %#x, actual_limit_cur = %d\n",
-		 reg_val, info->actual_limit_current);
-
-out:
-	mutex_unlock(&info->input_limit_cur_lock);
-
-	return ret;
-}
-
 static inline int bq25890_charger_get_health(struct bq25890_charger_info *info,
-					     u32 *health)
+				      u32 *health)
 {
 	*health = POWER_SUPPLY_HEALTH_GOOD;
 
 	return 0;
 }
 
+static inline int bq25890_charger_get_online(struct bq25890_charger_info *info,
+				      u32 *online)
+{
+	if (info->limit)
+		*online = true;
+	else
+		*online = false;
+
+	return 0;
+}
+
 static int bq25890_charger_feed_watchdog(struct bq25890_charger_info *info)
 {
-	int ret = 0;
+	int ret;
+	u32 limit_cur = 0;
 
 	ret = bq25890_update_bits(info, BQ25890_REG_03, REG03_WDT_RESET_MASK,
 				  REG03_WDT_RESET << REG03_WDT_RESET_SHIFT);
@@ -980,13 +986,24 @@ static int bq25890_charger_feed_watchdog(struct bq25890_charger_info *info)
 	}
 
 	if (info->otg_enable)
+		return 0;
+
+	ret = bq25890_charger_get_limit_current(info, &limit_cur);
+	if (ret) {
+		dev_err(info->dev, "get limit cur failed\n");
 		return ret;
+	}
 
-	ret = bq25890_charger_set_limit_current(info, 0, true);
-	if (ret)
+	if (info->actual_limit_current == limit_cur)
+		return 0;
+
+	ret = bq25890_charger_set_limit_current(info, info->actual_limit_current);
+	if (ret) {
 		dev_err(info->dev, "set limit cur failed\n");
+		return ret;
+	}
 
-	return ret;
+	return 0;
 }
 
 static inline int bq25890_charger_get_status(struct bq25890_charger_info *info)
@@ -1027,8 +1044,27 @@ static int bq25890_charger_set_status(struct bq25890_charger_info *info,
 	return ret;
 }
 
+static void bq25890_charger_work(struct work_struct *data)
+{
+	struct bq25890_charger_info *info =
+		container_of(data, struct bq25890_charger_info, work);
+	bool present;
+
+	present = bq25890_charger_is_bat_present(info);
+
+	if (info->limit)
+		schedule_delayed_work(&info->wdt_work, 0);
+	else
+		cancel_delayed_work_sync(&info->wdt_work);
+
+	dev_info(info->dev, "battery present = %d, charger type = %d\n",
+		 present, info->usb_phy->chg_type);
+	cm_notify_event(info->psy_usb, CM_EVENT_CHG_START_STOP, NULL);
+}
+
 static ssize_t bq25890_reg_val_show(struct device *dev,
-				    struct device_attribute *attr, char *buf)
+					   struct device_attribute *attr,
+					   char *buf)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1053,8 +1089,8 @@ static ssize_t bq25890_reg_val_show(struct device *dev,
 }
 
 static ssize_t bq25890_reg_val_store(struct device *dev,
-				     struct device_attribute *attr,
-				     const char *buf, size_t count)
+					    struct device_attribute *attr,
+					    const char *buf, size_t count)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1087,8 +1123,8 @@ static ssize_t bq25890_reg_val_store(struct device *dev,
 }
 
 static ssize_t bq25890_reg_id_store(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t count)
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1120,7 +1156,8 @@ static ssize_t bq25890_reg_id_store(struct device *dev,
 }
 
 static ssize_t bq25890_reg_id_show(struct device *dev,
-				   struct device_attribute *attr, char *buf)
+					struct device_attribute *attr,
+					char *buf)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1134,7 +1171,8 @@ static ssize_t bq25890_reg_id_show(struct device *dev,
 }
 
 static ssize_t bq25890_reg_table_show(struct device *dev,
-				      struct device_attribute *attr, char *buf)
+					   struct device_attribute *attr,
+					   char *buf)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1162,7 +1200,8 @@ static ssize_t bq25890_reg_table_show(struct device *dev,
 }
 
 static ssize_t bq25890_dump_reg_show(struct device *dev,
-				     struct device_attribute *attr, char *buf)
+					  struct device_attribute *attr,
+					  char *buf)
 {
 	struct bq25890_charger_sysfs *bq25890_sysfs =
 		container_of(attr, struct bq25890_charger_sysfs,
@@ -1226,12 +1265,27 @@ static int bq25890_register_sysfs(struct bq25890_charger_info *info)
 	return ret;
 }
 
+static int bq25890_charger_usb_change(struct notifier_block *nb,
+				      unsigned long limit, void *data)
+{
+	struct bq25890_charger_info *info =
+		container_of(nb, struct bq25890_charger_info, usb_notify);
+
+	info->limit = limit;
+
+	pm_wakeup_event(info->dev, BQ25890_WAKE_UP_MS);
+
+	schedule_work(&info->work);
+	return NOTIFY_OK;
+}
+
 static int bq25890_charger_usb_get_property(struct power_supply *psy,
 					    enum power_supply_property psp,
 					    union power_supply_propval *val)
 {
 	struct bq25890_charger_info *info = power_supply_get_drvdata(psy);
-	u32 cur, health, enabled = 0;
+	u32 cur, online, health, enabled = 0;
+	enum usb_charger_type type;
 	int ret = 0;
 
 	if (!info)
@@ -1241,7 +1295,10 @@ static int bq25890_charger_usb_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-		val->intval = bq25890_charger_get_status(info);
+		if (info->limit)
+			val->intval = bq25890_charger_get_status(info);
+		else
+			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
 		break;
 
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
@@ -1268,6 +1325,15 @@ static int bq25890_charger_usb_get_property(struct power_supply *psy,
 		}
 		break;
 
+	case POWER_SUPPLY_PROP_ONLINE:
+		ret = bq25890_charger_get_online(info, &online);
+		if (ret)
+			goto out;
+
+		val->intval = online;
+
+		break;
+
 	case POWER_SUPPLY_PROP_HEALTH:
 		if (info->charging) {
 			val->intval = 0;
@@ -1280,6 +1346,28 @@ static int bq25890_charger_usb_get_property(struct power_supply *psy,
 		}
 		break;
 
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		type = info->usb_phy->chg_type;
+
+		switch (type) {
+		case SDP_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_SDP;
+			break;
+
+		case DCP_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_DCP;
+			break;
+
+		case CDP_TYPE:
+			val->intval = POWER_SUPPLY_USB_TYPE_CDP;
+			break;
+
+		default:
+			val->intval = POWER_SUPPLY_USB_TYPE_UNKNOWN;
+		}
+
+		break;
+
 	case POWER_SUPPLY_PROP_CALIBRATE:
 		ret = regmap_read(info->pmic, info->charger_pd, &enabled);
 		if (ret) {
@@ -1289,7 +1377,6 @@ static int bq25890_charger_usb_get_property(struct power_supply *psy,
 
 		val->intval = !(enabled & info->charger_pd_mask);
 		break;
-
 	default:
 		ret = -EINVAL;
 	}
@@ -1333,7 +1420,7 @@ static int bq25890_charger_usb_set_property(struct power_supply *psy,
 			dev_err(info->dev, "set charge current failed\n");
 		break;
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
-		ret = bq25890_charger_set_limit_current(info, val->intval, false);
+		ret = bq25890_charger_set_limit_current(info, val->intval);
 		if (ret < 0)
 			dev_err(info->dev, "set input current limit failed\n");
 		break;
@@ -1359,17 +1446,6 @@ static int bq25890_charger_usb_set_property(struct power_supply *psy,
 			bq25890_charger_stop_charge(info, present);
 		}
 		break;
-
-	case POWER_SUPPLY_PROP_PRESENT:
-		info->is_charger_online = val->intval;
-		if (val->intval == true) {
-			schedule_delayed_work(&info->wdt_work, 0);
-		} else {
-			info->actual_limit_cur = 0;
-			cancel_delayed_work_sync(&info->wdt_work);
-		}
-		break;
-
 	default:
 		ret = -EINVAL;
 	}
@@ -1387,7 +1463,6 @@ static int bq25890_charger_property_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
 	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
 	case POWER_SUPPLY_PROP_STATUS:
-	case POWER_SUPPLY_PROP_PRESENT:
 	case POWER_SUPPLY_PROP_CALIBRATE:
 		ret = 1;
 		break;
@@ -1399,23 +1474,61 @@ static int bq25890_charger_property_is_writeable(struct power_supply *psy,
 	return ret;
 }
 
+static enum power_supply_usb_type bq25890_charger_usb_types[] = {
+	POWER_SUPPLY_USB_TYPE_UNKNOWN,
+	POWER_SUPPLY_USB_TYPE_SDP,
+	POWER_SUPPLY_USB_TYPE_DCP,
+	POWER_SUPPLY_USB_TYPE_CDP,
+	POWER_SUPPLY_USB_TYPE_C,
+	POWER_SUPPLY_USB_TYPE_PD,
+	POWER_SUPPLY_USB_TYPE_PD_DRP,
+	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
+};
+
 static enum power_supply_property bq25890_usb_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
 	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_HEALTH,
+	POWER_SUPPLY_PROP_USB_TYPE,
 	POWER_SUPPLY_PROP_CALIBRATE,
 };
 
 static const struct power_supply_desc bq25890_charger_desc = {
 	.name			= "bq25890_charger",
-	.type			= POWER_SUPPLY_TYPE_UNKNOWN,
+	.type			= POWER_SUPPLY_TYPE_USB,
 	.properties		= bq25890_usb_props,
 	.num_properties		= ARRAY_SIZE(bq25890_usb_props),
 	.get_property		= bq25890_charger_usb_get_property,
 	.set_property		= bq25890_charger_usb_set_property,
 	.property_is_writeable	= bq25890_charger_property_is_writeable,
+	.usb_types		= bq25890_charger_usb_types,
+	.num_usb_types		= ARRAY_SIZE(bq25890_charger_usb_types),
 };
+
+static void bq25890_charger_detect_status(struct bq25890_charger_info *info)
+{
+	unsigned int min, max;
+
+	/*
+	 * If the USB charger status has been USB_CHARGER_PRESENT before
+	 * registering the notifier, we should start to charge with getting
+	 * the charge current.
+	 */
+	if (info->usb_phy->chg_state != USB_CHARGER_PRESENT)
+		return;
+
+	usb_phy_get_charger_current(info->usb_phy, &min, &max);
+	info->limit = min;
+
+	/*
+	 * slave no need to start charge when vbus change.
+	 * due to charging in shut down will check each psy
+	 * whether online or not, so let info->limit = min.
+	 */
+	schedule_work(&info->work);
+}
 
 static void bq25890_charger_feed_watchdog_work(struct work_struct *work)
 {
@@ -1647,9 +1760,21 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	alarm_init(&info->wdg_timer, ALARM_BOOTTIME, NULL);
 
 	mutex_init(&info->lock);
-	mutex_init(&info->input_limit_cur_lock);
+	INIT_WORK(&info->work, bq25890_charger_work);
 
 	i2c_set_clientdata(client, info);
+
+	info->usb_phy = devm_usb_get_phy_by_phandle(dev, "phys", 0);
+	if (IS_ERR(info->usb_phy)) {
+		dev_err(dev, "failed to find USB phy\n");
+		return PTR_ERR(info->usb_phy);
+	}
+
+	info->edev = extcon_get_edev_by_phandle(info->dev, 0);
+	if (IS_ERR(info->edev)) {
+		dev_err(dev, "failed to find vbus extcon device.\n");
+		return PTR_ERR(info->edev);
+	}
 
 	ret = bq25890_charger_is_fgu_present(info);
 	if (ret) {
@@ -1727,12 +1852,20 @@ static int bq25890_charger_probe(struct i2c_client *client,
 	bq25890_charger_stop_charge(info, bat_present);
 
 	device_init_wakeup(info->dev, true);
+	info->usb_notify.notifier_call = bq25890_charger_usb_change;
+	ret = usb_register_notifier(info->usb_phy, &info->usb_notify);
+	if (ret) {
+		dev_err(dev, "failed to register notifier:%d\n", ret);
+		goto err_psy_usb;
+	}
 
 	ret = bq25890_register_sysfs(info);
 	if (ret) {
 		dev_err(info->dev, "register sysfs fail, ret = %d\n", ret);
 		goto err_sysfs;
 	}
+
+	bq25890_charger_detect_status(info);
 
 	ret = bq25890_update_bits(info, BQ25890_REG_07, REG07_WDT_MASK,
 				  REG07_WDT_40S << REG07_WDT_SHIFT);
@@ -1749,6 +1882,9 @@ static int bq25890_charger_probe(struct i2c_client *client,
 
 err_sysfs:
 	sysfs_remove_group(&info->psy_usb->dev.kobj, &info->sysfs->attr_g);
+	usb_unregister_notifier(info->usb_phy, &info->usb_notify);
+err_psy_usb:
+	power_supply_unregister(info->psy_usb);
 err_mutex_lock:
 	mutex_destroy(&info->lock);
 
@@ -1785,6 +1921,7 @@ static int bq25890_charger_remove(struct i2c_client *client)
 
 	cancel_delayed_work_sync(&info->wdt_work);
 	cancel_delayed_work_sync(&info->otg_work);
+	usb_unregister_notifier(info->usb_phy, &info->usb_notify);
 
 	return 0;
 }
@@ -1796,7 +1933,7 @@ static int bq25890_charger_suspend(struct device *dev)
 	ktime_t now, add;
 	unsigned int wakeup_ms = BQ25890_WDG_TIMER_MS;
 
-	if (info->otg_enable || info->is_charger_online)
+	if (info->otg_enable || info->limit)
 		/* feed watchdog first before suspend */
 		bq25890_charger_feed_watchdog(info);
 
@@ -1817,7 +1954,7 @@ static int bq25890_charger_resume(struct device *dev)
 {
 	struct bq25890_charger_info *info = dev_get_drvdata(dev);
 
-	if (info->otg_enable || info->is_charger_online)
+	if (info->otg_enable || info->limit)
 		/* feed watchdog first before suspend */
 		bq25890_charger_feed_watchdog(info);
 

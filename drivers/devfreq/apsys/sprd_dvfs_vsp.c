@@ -31,24 +31,6 @@ static const struct sprd_vsp_dvfs_data sharkl5pro_vsp_data = {
 	.dvfs_ops = &sharkl5pro_vsp_dvfs_ops,
 };
 
-static const struct sprd_vsp_dvfs_data qogirl6_vsp_data = {
-	.ver = "qogirl6",
-	.max_freq_level = 3,
-	.dvfs_ops = &qogirl6_vsp_dvfs_ops,
-};
-
-static const struct sprd_vsp_dvfs_data qogirn6pro_vsp_data = {
-	.ver = "qogirn6pro",
-	.max_freq_level = 5,
-	.dvfs_ops = &qogirn6pro_vpudec_vsp_dvfs_ops,
-};
-
-static const struct sprd_vsp_dvfs_data qogirn6pro_vpuenc_data = {
-	.ver = "qogirn6pro-vpuenc",
-	.max_freq_level = 4,
-	.dvfs_ops = &qogirn6pro_vpuenc_vsp_dvfs_ops,
-};
-
 static const struct of_device_id vsp_dvfs_of_match[] = {
 	{ .compatible = "sprd,hwdvfs-vsp-sharkl5",
 	  .data = &sharkl5_vsp_data },
@@ -56,29 +38,16 @@ static const struct of_device_id vsp_dvfs_of_match[] = {
 	  .data = &roc1_vsp_data },
 	{ .compatible = "sprd,hwdvfs-vsp-sharkl5pro",
 	  .data = &sharkl5pro_vsp_data },
-	{ .compatible = "sprd,hwdvfs-vsp-qogirl6",
-	  .data = &qogirl6_vsp_data },
-	{ .compatible = "sprd,hwdvfs-vsp-qogirn6pro",
-	  .data = &qogirn6pro_vsp_data },
-	{ .compatible = "sprd,hwdvfs-vpuenc-qogirn6pro",
-	  .data = &qogirn6pro_vpuenc_data },
 	{ },
 };
 
 MODULE_DEVICE_TABLE(of, vsp_dvfs_of_match);
 
 BLOCKING_NOTIFIER_HEAD(vsp_dvfs_chain);
-BLOCKING_NOTIFIER_HEAD(vpuenc_dvfs_chain);
 
-int vsp_dvfs_notifier_call_chain(void *data, bool is_enc)
+int vsp_dvfs_notifier_call_chain(void *data)
 {
-	if (is_enc) {
-		pr_debug("notifier_call_chain: enc\n");
-		return blocking_notifier_call_chain(&vpuenc_dvfs_chain, 0, data);
-	} else {
-		pr_debug("notifier_call_chain: dec\n");
-		return blocking_notifier_call_chain(&vsp_dvfs_chain, 0, data);
-	}
+	return blocking_notifier_call_chain(&vsp_dvfs_chain, 0, data);
 }
 EXPORT_SYMBOL_GPL(vsp_dvfs_notifier_call_chain);
 
@@ -89,10 +58,6 @@ static ssize_t get_dvfs_enable_show(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	int ret = 0;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
 	ret = sprintf(buf, "%d\n", vsp->ip_coeff.hw_dfs_en);
 
 	return ret;
@@ -105,11 +70,6 @@ static ssize_t set_dvfs_enable_store(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_en;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject set vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%u\n", &user_en);
 	if (ret != 1)
@@ -134,11 +94,6 @@ static ssize_t get_work_freq_show(struct device *dev,
 	u32 work_freq;
 	int ret = 0;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_work_freq) {
 		work_freq = vsp->dvfs_ops->get_work_freq(vsp);
 		ret = sprintf(buf, "%u\n", work_freq);
@@ -156,11 +111,6 @@ static ssize_t set_work_freq_store(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 user_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject set vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 	ret = sscanf(buf, "%u\n", &user_freq);
@@ -189,11 +139,6 @@ static ssize_t get_idle_freq_show(struct device *dev,
 	int ret = 0;
 	u32 idle_freq;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_idle_freq) {
 		idle_freq = vsp->dvfs_ops->get_idle_freq(vsp);
 		ret = sprintf(buf, "%d\n", idle_freq);
@@ -212,11 +157,6 @@ static ssize_t set_idle_freq_store(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 idle_freq;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject set vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	mutex_lock(&devfreq->lock);
 	ret = sscanf(buf, "%u\n", &idle_freq);
@@ -242,11 +182,6 @@ static ssize_t get_work_index_show(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	int ret = 0, work_index;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_work_index) {
 		work_index = vsp->dvfs_ops->get_work_index(vsp);
 		ret = sprintf(buf, "%d\n", work_index);
@@ -264,11 +199,6 @@ static ssize_t set_work_index_store(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 work_index;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject set vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%u\n", &work_index);
 	if (ret != 1)
@@ -289,11 +219,6 @@ static ssize_t get_idle_index_show(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	int ret = 0, idle_index;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_idle_index) {
 		idle_index = vsp->dvfs_ops->get_idle_index(vsp);
 		ret = sprintf(buf, "%d\n", idle_index);
@@ -311,11 +236,6 @@ static ssize_t set_idle_index_store(struct device *dev,
 	struct vsp_dvfs *vsp = dev_get_drvdata(devfreq->dev.parent);
 	u32 idle_index;
 	int ret;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject set vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	ret = sscanf(buf, "%u\n", &idle_index);
 	if (ret != 1)
@@ -337,11 +257,6 @@ static ssize_t get_dvfs_status_show(struct device *dev,
 	struct ip_dvfs_status ip_status = {0};
 	ssize_t len = 0;
 
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
-
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_dvfs_status)
 		vsp->dvfs_ops->get_dvfs_status(vsp, &ip_status);
 	else {
@@ -350,19 +265,18 @@ static ssize_t get_dvfs_status_show(struct device *dev,
 	}
 
 	len = sprintf(buf, "apsys_cur_volt\tvsp_vote_volt\t"
-			"vpuenc_vote_volt\tdpu_vote_volt\tvdsp_vote_volt\n");
+			"dpu_vote_volt\tvdsp_vote_volt\n");
 
-	len += sprintf(buf + len, "%s\t\t%s\t\t%s\t\t%s\t\t%s\n",
+	len += sprintf(buf + len, "%s\t\t%s\t\t%s\t\t%s\n",
 			ip_status.apsys_cur_volt, ip_status.vsp_vote_volt,
-			ip_status.vpuenc_vote_volt,
 			ip_status.dpu_vote_volt, ip_status.vdsp_vote_volt);
 
-	len += sprintf(buf + len, "\t\tvsp_cur_freq\tvpuenc_cur_freq\t"
-			"dpu_cur_freq\tvdsp_cur_freq\n");
+	len += sprintf(buf + len, "\t\tvsp_cur_freq\tdpu_cur_freq\t"
+			"vdsp_cur_freq\n");
 
-	len += sprintf(buf + len, "\t\t%s\t\t%s\t\t%s\t\t%s\n",
-			ip_status.vsp_cur_freq, ip_status.vpuenc_cur_freq,
-			ip_status.dpu_cur_freq, ip_status.vdsp_cur_freq);
+	len += sprintf(buf + len, "\t\t%s\t\t%s\t\t%s\n",
+			ip_status.vsp_cur_freq, ip_status.dpu_cur_freq,
+			ip_status.vdsp_cur_freq);
 
 	return len;
 }
@@ -376,11 +290,6 @@ static ssize_t get_dvfs_table_info_show(struct device *dev,
 	struct ip_dvfs_map_cfg dvfs_table[MAX_FREQ_LEVEL];
 	ssize_t len = 0;
 	int i;
-
-	if (!get_display_power_status()) {
-		pr_err("dpu is stopped, reject get vpu dvfs status\n");
-		return -EINVAL;
-	}
 
 	if (vsp->dvfs_ops && vsp->dvfs_ops->get_dvfs_table)
 		vsp->dvfs_ops->get_dvfs_table(dvfs_table);
@@ -535,6 +444,7 @@ static int vsp_dvfs_target(struct device *dev, unsigned long *freq,
 	struct vsp_dvfs *vsp = dev_get_drvdata(dev);
 	struct dev_pm_opp *opp;
 	unsigned long target_freq;
+	int ret = 0;
 
 	pr_debug("devfreq_dev_profile-->target, freq=%lu\n", *freq);
 	opp = devfreq_recommended_opp(dev, freq, flags);
@@ -554,7 +464,12 @@ static int vsp_dvfs_target(struct device *dev, unsigned long *freq,
 		vsp->idle_freq = target_freq;
 	vsp->dvfs_ops->updata_target_freq(vsp, target_freq, vsp->freq_type);
 
-	return 0;
+	if (ret) {
+		dev_err(dev, "Cannot to set freq:%lu to vsp, ret: %d\n",
+		target_freq, ret);
+	}
+
+	return ret;
 }
 
 int vsp_dvfs_get_dev_status(struct device *dev,
@@ -651,15 +566,8 @@ static int vsp_dvfs_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 	vsp->vsp_dvfs_nb.notifier_call = vsp_dvfs_notify_callback;
-	if (!strcmp("qogirn6pro-vpuenc", data->ver)) {
-		pr_debug("chain_register: vpuenc \n");
-		ret = blocking_notifier_chain_register(&vpuenc_dvfs_chain,
+	ret = blocking_notifier_chain_register(&vsp_dvfs_chain,
 			&vsp->vsp_dvfs_nb);
-	} else {
-		pr_debug("chain_register: vpudec \n");
-		ret = blocking_notifier_chain_register(&vsp_dvfs_chain,
-			&vsp->vsp_dvfs_nb);
-	}
 
 	platform_set_drvdata(pdev, vsp);
 	vsp->devfreq = devm_devfreq_add_device(dev,
@@ -672,7 +580,7 @@ static int vsp_dvfs_probe(struct platform_device *pdev)
 		ret = PTR_ERR(vsp->devfreq);
 		goto ret;
 	}
-	//device_rename(&vsp->devfreq->dev, "vsp");
+	device_rename(&vsp->devfreq->dev, "vsp");
 
 	if (vsp->dvfs_ops && vsp->dvfs_ops->parse_dt)
 		vsp->dvfs_ops->parse_dt(vsp, np);
@@ -685,10 +593,7 @@ static int vsp_dvfs_probe(struct platform_device *pdev)
 
 ret:
 	dev_pm_opp_of_remove_table(dev);
-	if (!strcmp("qogirn6pro-vpuenc", data->ver))
-		blocking_notifier_chain_unregister(&vpuenc_dvfs_chain, &vsp->vsp_dvfs_nb);
-	else
-		blocking_notifier_chain_unregister(&vsp_dvfs_chain, &vsp->vsp_dvfs_nb);
+	blocking_notifier_chain_unregister(&vsp_dvfs_chain, &vsp->vsp_dvfs_nb);
 
 	return ret;
 }

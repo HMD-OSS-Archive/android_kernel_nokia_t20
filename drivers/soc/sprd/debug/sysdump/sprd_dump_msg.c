@@ -141,8 +141,7 @@ static void minidump_add_current_stack(void)
 #else
 	for_each_possible_cpu(cpu) {
 		scnprintf(name, MAX_NAME_LEN, "cpustack%d", cpu);
-		if (minidump_save_extend_information(name, 0, THREAD_SIZE))
-			return;
+		minidump_save_extend_information(name, 0, THREAD_SIZE);
 	}
 #endif
 	currstack_inited = 1;
@@ -232,7 +231,7 @@ static void dump_task_info(struct task_struct *task, char *status,
 	if (task == curr) {
 		SEQ_printf(sprd_rq_seq_buf, "[status: curr] pid: %d comm: %s preempt: %#llx\n",
 			task_pid_nr(task), task->comm,
-			(unsigned long long)task_thread_info(task)->preempt_count);
+			task_thread_info(task)->preempt_count);
 		return;
 	}
 

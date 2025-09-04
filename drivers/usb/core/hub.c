@@ -1109,10 +1109,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 		} else {
 			hub_power_on(hub, true);
 		}
-	/* Give some time on remote wakeup to let links to transit to U0 */
-	} else if (hub_is_superspeed(hub->hdev))
-		msleep(20);
-
+	}
  init2:
 
 	/*
@@ -1227,7 +1224,7 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 			 */
 			if (portchange || (hub_is_superspeed(hub->hdev) &&
 						port_resumed))
-				set_bit(port1, hub->event_bits);
+				set_bit(port1, hub->change_bits);
 
 		} else if (udev->persist_enabled) {
 #ifdef CONFIG_PM
@@ -2299,64 +2296,6 @@ static void announce_device(struct usb_device *udev)
 static inline void announce_device(struct usb_device *udev) { }
 #endif
 
-#if IS_ENABLED(CONFIG_SPRD_USBM)
-#include <linux/usb/sprd_usbm.h>
-static int __nocfi sprd_switch_usb_audio(struct usb_device *udev)
-{
-	struct usb_interface_descriptor *intf_desc;
-	struct usb_config_descriptor	*config_desc;
-	const char		*driver_name;
-	int i;
-	bool audio_flag = false;
-	bool ret = false;
-	struct usb_hcd *hcd = bus_to_hcd(udev->bus);
-	static int (*func)(unsigned int, unsigned long, void *);
-
-	intf_desc = &udev->config->intf_cache[0]->altsetting[0].desc;
-	config_desc = &udev->config->desc;
-
-	if (udev->bus->controller->driver)
-		driver_name = udev->bus->controller->driver->name;
-	else
-		driver_name = udev->bus->sysdev->driver->name;
-
-	/* There may be couple of intf_cache due to config, loopup all
-	 * of the intf for usb audio
-	 */
-	for (i = 0; i < config_desc->bNumInterfaces; i++) {
-		intf_desc = &udev->config->intf_cache[i]->altsetting[0].desc;
-		if (intf_desc->bInterfaceClass == USB_CLASS_AUDIO) {
-			audio_flag = true;
-			break;
-		}
-	}
-
-	dev_dbg(&udev->dev,
-		"config_desc: bNumInterfaces=%d, intf_desc: bInterfaceNumber=%d bInterfaceClass=%d \
-		bInterfaceSubClass=%d bInterfaceProtocol=%d\n",
-		config_desc->bNumInterfaces,
-		intf_desc->bInterfaceNumber,
-		intf_desc->bInterfaceClass,
-		intf_desc->bInterfaceSubClass,
-		intf_desc->bInterfaceProtocol);
-
-	/* If the usb device is an audio device, and current usb controller is
-	 * not "musb-hdrc", need to switch to musb
-	 */
-	if (audio_flag && !strncmp(driver_name, "xhci-hcd", 8)) {
-		dev_info(&udev->dev, "Do usb3 -> usb2 switch for usb audio, [%s]\n",
-			dev_name(hcd->usb_phy->dev));
-		func = (int (*)(unsigned int, unsigned long, void *))
-				module_kallsyms_lookup_name("call_sprd_usbm_event_notifiers");
-		if (func)
-			(*func) (SPRD_USBM_EVENT_HOST_DWC3, false, NULL);
-
-		ret = true;
-	}
-
-	return ret;
-}
-#endif
 
 /**
  * usb_enumerate_device_otg - FIXME (usbcore-internal)
@@ -2593,17 +2532,6 @@ int usb_new_device(struct usb_device *udev)
 	dev_dbg(&udev->dev, "udev %d, busnum %d, minor = %d\n",
 			udev->devnum, udev->bus->busnum,
 			(((udev->bus->busnum-1) * 128) + (udev->devnum-1)));
-
-#if IS_ENABLED(CONFIG_SPRD_USBM)
-	/* if we want to switch the usb controlloer, we set the err to -ENOTCONN to make
-	 * sure it will not re-try the enumerate, just break and do switching
-	 */
-	if (sprd_switch_usb_audio(udev)) {
-		err = -ENOTCONN;
-		goto fail;
-	}
-#endif
-
 	/* export the usbdev device-node for libusb */
 	udev->dev.devt = MKDEV(USB_DEVICE_MAJOR,
 			(((udev->bus->busnum-1) * 128) + (udev->devnum-1)));
@@ -4682,6 +4610,8 @@ hub_port_init(struct usb_hub *hub, struct usb_device *udev, int port1,
 	if (oldspeed == USB_SPEED_LOW)
 		delay = HUB_LONG_RESET_TIME;
 
+	mutex_lock(hcd->address0_mutex);
+
 	/* Reset the device; full speed may morph to high speed */
 	/* FIXME a USB 2.0 device may morph into SuperSpeed on reset. */
 	retval = hub_port_reset(hub, port1, udev, delay, false);
@@ -4996,6 +4926,7 @@ fail:
 		hub_port_disable(hub, port1, 0);
 		update_devnum(udev, devnum);	/* for disconnect processing */
 	}
+	mutex_unlock(hcd->address0_mutex);
 	return retval;
 }
 
@@ -5085,7 +5016,6 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 	struct usb_port *port_dev = hub->ports[port1 - 1];
 	struct usb_device *udev = port_dev->child;
 	static int unreliable_port = -1;
-	bool retry_locked;
 
 	/* Disconnect any existing devices under this port */
 	if (udev) {
@@ -5141,11 +5071,7 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 		unit_load = 100;
 
 	status = 0;
-
 	for (i = 0; i < SET_CONFIG_TRIES; i++) {
-		usb_lock_port(port_dev);
-		mutex_lock(hcd->address0_mutex);
-		retry_locked = true;
 
 		/* reallocate for each attempt, since references
 		 * to the previous one can escape in various ways
@@ -5154,8 +5080,6 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 		if (!udev) {
 			dev_err(&port_dev->dev,
 					"couldn't allocate usb_device\n");
-			mutex_unlock(hcd->address0_mutex);
-			usb_unlock_port(port_dev);
 			goto done;
 		}
 
@@ -5177,13 +5101,11 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 		}
 
 		/* reset (non-USB 3.0 devices) and get descriptor */
+		usb_lock_port(port_dev);
 		status = hub_port_init(hub, udev, port1, i);
+		usb_unlock_port(port_dev);
 		if (status < 0)
 			goto loop;
-
-		mutex_unlock(hcd->address0_mutex);
-		usb_unlock_port(port_dev);
-		retry_locked = false;
 
 		if (udev->quirks & USB_QUIRK_DELAY_INIT)
 			msleep(2000);
@@ -5277,10 +5199,6 @@ loop:
 		usb_ep0_reinit(udev);
 		release_devnum(udev);
 		hub_free_dev(udev);
-		if (retry_locked) {
-			mutex_unlock(hcd->address0_mutex);
-			usb_unlock_port(port_dev);
-		}
 		usb_put_dev(udev);
 		if ((status == -ENOTCONN) || (status == -ENOTSUPP))
 			break;
@@ -5881,8 +5799,6 @@ static int usb_reset_and_verify_device(struct usb_device *udev)
 	bos = udev->bos;
 	udev->bos = NULL;
 
-	mutex_lock(hcd->address0_mutex);
-
 	for (i = 0; i < SET_CONFIG_TRIES; ++i) {
 
 		/* ep0 maxpacket size may change; let the HCD know about it.
@@ -5892,7 +5808,6 @@ static int usb_reset_and_verify_device(struct usb_device *udev)
 		if (ret >= 0 || ret == -ENOTCONN || ret == -ENODEV)
 			break;
 	}
-	mutex_unlock(hcd->address0_mutex);
 
 	if (ret < 0)
 		goto re_enumerate;

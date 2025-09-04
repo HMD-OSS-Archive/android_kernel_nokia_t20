@@ -9,29 +9,28 @@
  * published by the Free Software Foundation.
  */
 
-#include <linux/bitops.h>
-#include <linux/debugfs.h>
-#include <linux/delay.h>
-#include <linux/err.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
-#include <linux/kernel.h>
-#include <linux/kthread.h>
-#include <linux/math64.h>
 #include <linux/module.h>
+#include <linux/power_supply.h>
+#include <linux/slab.h>
+#include <linux/kernel.h>
+#include <linux/sched.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
-#include <linux/power/charger-manager.h>
-#include <linux/power_supply.h>
+#include <linux/err.h>
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
-#include <linux/slab.h>
-#include <linux/sched.h>
-
+#include <linux/debugfs.h>
+#include <linux/bitops.h>
+#include <linux/math64.h>
 #include <linux/power/bq25970_reg.h>
+#include <linux/power/charger-manager.h>
 
 enum {
 	ADC_IBUS,
@@ -155,7 +154,6 @@ struct bq2597x_charger_info {
 
 	bool irq_waiting;
 	bool irq_disabled;
-	bool irq_response;
 	bool resume_completed;
 
 	bool batt_present;
@@ -209,8 +207,8 @@ struct bq2597x_charger_info {
 	bool vbat_reg;
 	bool ibat_reg;
 
-	int prev_alarm;
-	int prev_fault;
+	int  prev_alarm;
+	int  prev_fault;
 
 	int chg_ma;
 	int chg_mv;
@@ -233,6 +231,8 @@ struct bq2597x_charger_info {
 
 	unsigned int int_pin;
 };
+
+static void bq2597x_dump_reg(struct bq2597x_charger_info *bq);
 
 static int __bq2597x_read_byte(struct bq2597x_charger_info *bq, u8 reg, u8 *data)
 {
@@ -371,15 +371,10 @@ static int bq2597x_check_charge_enabled(struct bq2597x_charger_info *bq, bool *e
 	u8 val;
 
 	ret = bq2597x_read_byte(bq, BQ2597X_REG_0C, &val);
-	if (ret < 0) {
-		dev_err(bq->dev, "failed to check charge enable, ret = %d\n", ret);
-		*enabled = false;
-		return ret;
-	}
+	if (!ret)
+		*enabled = !!(val & BQ2597X_CHG_EN_MASK);
 
-	*enabled = !!(val & BQ2597X_CHG_EN_MASK);
-
-	return 0;
+	return ret;
 }
 
 static int bq2597x_reset(struct bq2597x_charger_info *bq, bool reset)
@@ -549,8 +544,6 @@ static int bq2597x_set_busovp_th(struct bq2597x_charger_info *bq, int threshold)
 
 	if (threshold < BQ2597X_BUS_OVP_BASE)
 		threshold = BQ2597X_BUS_OVP_BASE;
-	else if (threshold > BQ2597X_BUS_OVP_MAX)
-		threshold = BQ2597X_BUS_OVP_MAX;
 
 	val = (threshold - BQ2597X_BUS_OVP_BASE) / BQ2597X_BUS_OVP_LSB;
 
@@ -1570,7 +1563,7 @@ static int bq2597x_get_temperature(struct bq2597x_charger_info *bq, int *intval)
 	int ret = 0;
 	int result = 0;
 
-	if (*intval == CMD_BATT_TEMP_CMD) {
+	if (*intval == CM_BUS_TEMP_CMD) {
 		ret = bq2597x_get_adc_data(bq, ADC_TBAT, &result);
 		if (!ret)
 			bq->bat_temp = result;
@@ -1613,10 +1606,8 @@ static int bq2597x_charger_get_property(struct power_supply *psy,
 	int ret, cmd;
 	u8 reg_val;
 
-	if (!bq) {
-		pr_err("%s[%d], NULL pointer!!!\n", __func__, __LINE__);
+	if (!bq)
 		return -EINVAL;
-	}
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_CALIBRATE:
@@ -1675,11 +1666,6 @@ static int bq2597x_charger_get_property(struct power_supply *psy,
 		val->intval = bq->vbus_volt * 1000;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
-		if (val->intval == CM_SOFT_ALARM_HEALTH_CMD) {
-			val->intval = 0;
-			break;
-		}
-
 		if (val->intval == CM_BUS_ERR_HEALTH_CMD) {
 			bq2597x_check_vbus_error_status(bq);
 			val->intval = (bq->bus_err_lo  << CM_CHARGER_BUS_ERR_LO_SHIFT);
@@ -1735,29 +1721,19 @@ static int bq2597x_charger_set_property(struct power_supply *psy,
 	struct bq2597x_charger_info *bq = power_supply_get_drvdata(psy);
 	int ret, value;
 
-	if (!bq) {
-		pr_err("%s[%d], NULL pointer!!!\n", __func__, __LINE__);
+	if (!bq)
 		return -EINVAL;
-	}
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_CALIBRATE:
-		bq->irq_response = !!val->intval;
 		if (!val->intval) {
 			bq2597x_enable_adc(bq, false);
 			cancel_delayed_work_sync(&bq->wdt_work);
 		}
-
-		ret = bq2597x_enable_charge(bq, val->intval);
-		if (ret)
-			dev_err(bq->dev, "%s, failed to %s charge\n",
-				__func__, val->intval ? "enable" : "disable");
-
-		if (bq2597x_check_charge_enabled(bq, &bq->charge_enabled))
-			dev_err(bq->dev, "%s, failed to check charge enabled\n", __func__);
-
-		dev_info(bq->dev, "%s, %s charge %s\n", __func__,
-			 val->intval ? "enable" : "disable", !ret ? "successfully" : "failed");
+		bq2597x_enable_charge(bq, val->intval);
+		bq2597x_check_charge_enabled(bq, &bq->charge_enabled);
+		dev_info(bq->dev, "POWER_SUPPLY_PROP_CHARGING_ENABLED: %s\n",
+			 val->intval ? "enable" : "disable");
 		break;
 
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -1811,7 +1787,7 @@ static int bq2597x_psy_register(struct bq2597x_charger_info *bq)
 	else
 		bq->psy_desc.name = "bq2597x-standalone";
 
-	bq->psy_desc.type = POWER_SUPPLY_TYPE_UNKNOWN;
+	bq->psy_desc.type = POWER_SUPPLY_TYPE_MAINS;
 	bq->psy_desc.properties = bq2597x_charger_props;
 	bq->psy_desc.num_properties = ARRAY_SIZE(bq2597x_charger_props);
 	bq->psy_desc.get_property = bq2597x_charger_get_property;
@@ -1938,15 +1914,9 @@ static void bq2597x_check_fault_status(struct bq2597x_charger_info *bq)
 static irqreturn_t bq2597x_charger_interrupt(int irq, void *dev_id)
 {
 	struct bq2597x_charger_info *bq = dev_id;
-	u8 flag = 0;
 
-	if (bq->irq_response) {
-		dev_info(bq->dev, "INT OCCURRED\n");
-		cm_notify_event(bq->bq2597x_psy, CM_EVENT_INT, NULL);
-	} else {
-		/* purpose: clear interrupt */
-		bq2597x_read_byte(bq, BQ2597X_REG_11, &flag);
-	}
+	dev_info(bq->dev, "INT OCCURRED\n");
+	cm_notify_event(bq->bq2597x_psy, CM_EVENT_INT, NULL);
 
 	return IRQ_HANDLED;
 }
@@ -2089,15 +2059,15 @@ static int bq2597x_charger_probe(struct i2c_client *client,
 		return ret;
 
 	if (gpio_is_valid(bq->int_pin)) {
-		ret = devm_gpio_request_one(bq->dev, bq->int_pin, GPIOF_DIR_IN, "bq2597x_int");
+		ret = devm_gpio_request_one(bq->dev, bq->int_pin,
+					    GPIOF_DIR_IN, "bq2597x_int");
 		if (ret) {
 			dev_err(bq->dev, "int request failed\n");
 			goto err_1;
 		}
-
-		client->irq =  gpio_to_irq(bq->int_pin);
 	}
 
+	client->irq =  gpio_to_irq(bq->int_pin);
 	if (client->irq) {
 		ret = devm_request_threaded_irq(&client->dev, client->irq,
 						NULL, bq2597x_charger_interrupt,

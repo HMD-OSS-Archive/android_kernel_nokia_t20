@@ -53,15 +53,6 @@ struct mdbg_proc_entry {
 	void *buf;
 };
 
-struct async_assert_t {
-	struct work_struct assert_wq;
-	/*device_suspend/device_resume device_lock()*/
-	atomic_t dev_lock;
-	atomic_t flag;
-	enum wcn_source_type async_assert_type;
-	char async_assert_str[128];
-};
-
 struct mdbg_proc_t {
 	char *dir_name;
 	struct proc_dir_entry		*procdir;
@@ -74,27 +65,10 @@ struct mdbg_proc_t {
 	int fail_count;
 	int assert_notify_flag;
 	bool loopcheck_flag;
-
-	/*see device_lock*/
-	struct async_assert_t async_assert;
 };
 
 static struct mdbg_proc_t *mdbg_proc;
 static int dump_cnt;
-
-void mdbg_device_lock_notify(void)
-{
-	WARN_ON(atomic_read(&mdbg_proc->async_assert.dev_lock));
-	atomic_set(&mdbg_proc->async_assert.dev_lock, 1);
-}
-EXPORT_SYMBOL_GPL(mdbg_device_lock_notify);
-
-void mdbg_device_unlock_notify(void)
-{
-	WARN_ON(!atomic_read(&mdbg_proc->async_assert.dev_lock));
-	atomic_set(&mdbg_proc->async_assert.dev_lock, 0);
-}
-EXPORT_SYMBOL_GPL(mdbg_device_unlock_notify);
 
 void wcn_reset_process(void)
 {
@@ -112,16 +86,11 @@ void wcn_dump_process(void)
 {
 	struct wcn_match_data *g_match_config = get_wcn_match_config();
 
-
 	if (dump_cnt) {
 		WCN_ERR("dump_cnt: %d, not dump again!\n", dump_cnt);
 		return;
 	}
 
-	if (g_match_config && g_match_config->unisoc_wcn_pcie) {
-	/* check pcie link status, reset if disconnected, or do nothing */
-		wcn_reset_pcie();
-	}
 	WCN_INFO("%s dumpmem begin\n", __func__);
 	sprdwcn_bus_set_carddump_status(true);
 
@@ -140,17 +109,10 @@ void wcn_dump_process(void)
 	WCN_INFO("%s dumpmem end\n", __func__);
 }
 
-bool wcn_is_assert(void)
-{
-	return mutex_is_locked(&mdbg_proc->mutex);
-}
-EXPORT_SYMBOL_GPL(wcn_is_assert);
-
-void __wcn_assert_interface(enum wcn_source_type type, char *str)
+void wcn_assert_interface(enum wcn_source_type type, char *str)
 {
 	int reset_prop = wcn_sysfs_get_reset_prop();
 
-	WCN_INFO("wcn_assert_interface %d\n", reset_prop);
 	WCN_ERR("wcn_source_type:%d\n", type);
 	WCN_ERR("fw assert:%s\n", str);
 	if (g_dumpmem_switch == 0) {
@@ -170,9 +132,8 @@ void __wcn_assert_interface(enum wcn_source_type type, char *str)
 		wcn_notify_fw_error(type, str);
 		mdbg_proc->assert_notify_flag = 1;
 	}
-	sprdwcn_bus_debug_point_show();
+
 	/*wcn reset or dump process*/
-	wcn_pm_qos_reset();
 	stop_loopcheck();
 	wcnlog_clear_log();
 
@@ -184,52 +145,13 @@ void __wcn_assert_interface(enum wcn_source_type type, char *str)
 		goto out;
 	} else if (reset_prop == WCN_ASSERT_BOTH_RESET_DUMP) {
 		/*need to do, please reference androidr_trunk_u01*/
-		wcn_dump_process();
-		msleep(2000);
-		wcn_reset_process();
-		sprdwcn_bus_set_carddump_status(false);
-		/*notify slogmodem to restore the state of saving dump*/
-		wcn_notify_fw_error(WCN_SOURCE_CP2_ALIVE, "save dump");
 		goto out;
 	}
+
 out:
 	mutex_unlock(&mdbg_proc->mutex);
 }
 EXPORT_SYMBOL_GPL(wcn_assert_interface);
-
-void wcn_assert_interface(enum wcn_source_type type, char *str)
-{
-	if (in_interrupt() || unlikely(atomic_read(&mdbg_proc->async_assert.flag)) ||
-		unlikely(atomic_read(&mdbg_proc->async_assert.dev_lock))) {
-		/* dump: dev_lock(resume), cause deadlock in system resume. see mdbg_dump_data() */
-		WCN_INFO("Async assert! %ld,%d,%d\n", in_interrupt(),
-			atomic_read(&mdbg_proc->async_assert.flag),
-			atomic_read(&mdbg_proc->async_assert.dev_lock));
-		mdbg_proc->async_assert.async_assert_type = type;
-		strncpy(mdbg_proc->async_assert.async_assert_str, str,
-				sizeof(mdbg_proc->async_assert.async_assert_str));
-		schedule_work(&mdbg_proc->async_assert.assert_wq);
-	} else
-		__wcn_assert_interface(type, str);
-}
-
-void wcn_assert_interface_async(enum wcn_source_type type, char *str)
-{
-	atomic_set(&mdbg_proc->async_assert.flag, 1);
-	wcn_assert_interface(type, str);
-	atomic_set(&mdbg_proc->async_assert.flag, 0);
-}
-EXPORT_SYMBOL_GPL(wcn_assert_interface_async);
-
-static void wcn_assert_wq(struct work_struct *work)
-{
-	struct async_assert_t *as = container_of(work, struct async_assert_t, assert_wq);
-
-	if (IS_ERR_OR_NULL(as))
-		return;
-
-	__wcn_assert_interface(as->async_assert_type, as->async_assert_str);
-}
 
 void mdbg_assert_interface(char *str)
 {
@@ -914,7 +836,7 @@ static ssize_t mdbg_proc_write(struct file *filp,
 			WCN_INFO("fail_count is value %d\n", mdbg_proc->fail_count);
 			mdbg_proc->fail_count = 0;
 			sprdwcn_bus_set_carddump_status(false);
-			wcn_reset_cp2();
+			wcn_device_poweroff();
 			WCN_INFO("marlin gnss  reset finish!\n");
 			return count;
 		}
@@ -957,7 +879,8 @@ static ssize_t mdbg_proc_write(struct file *filp,
 			marlin_set_download_status(0);
 			sprdwcn_bus_set_carddump_status(false);
 			marlin_chip_en(false, true);
-			wcn_reset_cp2();
+			if (marlin_reset_func != NULL)
+				marlin_reset_func(marlin_callback_para);
 			return count;
 		}
 		if (strncmp(mdbg_proc->write_buf, "at+getchipversion", 17) == 0) {
@@ -1009,7 +932,6 @@ static ssize_t mdbg_proc_write(struct file *filp,
 			WCN_ERR("%s:PCIE device link error\n", __func__);
 			return -1;
 		}
-		wcn_set_tx_complete_status(0);
 		/* make sure don't send at cmd to pcie when chip has power off */
 		if ((strncmp(mdbg_proc->write_buf, "at+loopcheck", 12) == 0)) {
 			if (atomic_inc_return(&pcie_dev->xmit_cnt) >=
@@ -1342,7 +1264,6 @@ int proc_fs_init(void)
 	init_waitqueue_head(&mdbg_proc->assert.rxwait);
 	init_waitqueue_head(&mdbg_proc->loopcheck.rxwait);
 	mutex_init(&mdbg_proc->mutex);
-	INIT_WORK(&mdbg_proc->async_assert.assert_wq, wcn_assert_wq);
 
 	if (mdbg_memory_alloc() < 0) {
 		kfree(mdbg_proc);

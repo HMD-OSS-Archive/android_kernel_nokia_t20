@@ -107,7 +107,7 @@
 		charge-sdp-current-microamp = <500000 500000>;
 		charge-dcp-current-microamp = <1150000 3000000>;
 		charge-cdp-current-microamp = <1150000 1150000>;
-		charge-unknown-current-microamp = <1050000 1050000>;
+		charge-unknown-current-microamp = <500000 500000>;
 	};
 
 	charger-manager {
@@ -168,14 +168,21 @@
 			<1450 1420 1150000 4350000>,
 			<1600 1570 700000 4100000>;
 		cm-unknown-jeita-temp-table = <1000 1030 0 4350000>,
-			<1150 1180 700000 4350000>,
-			<1450 1420 1050000 4350000>,
-			<1600 1570 700000 4100000>;
+			<1150 1180 500000 4350000>,
+			<1450 1420 500000 4350000>,
+			<1600 1570 500000 4100000>;
 
 		monitored-battery = <&bat>;
 
 		cm-cap-remap-table = <1 2 3>, <2 3 2>, <98 99 2>, <99 100 3>;
 
+		regulator@0 {
+			cm-regulator-name = "vddgen0";
+			cable@0 {
+				cm-cable-name = "USB";
+				extcon = <&pmic_typec>;
+			};
+		};
 	};
 	gpio-keys {
 		compatible = "gpio-keys";
@@ -488,6 +495,43 @@
 
 &iommu_vsp {
 	status = "okay";
+};
+
+&sprd_hwdvfs {
+	hwdvfs_cluster0: cluster@0 {
+		reg = <0 0x0>;
+		dcdc-ctrl = <&dcdc_ctrl1>;
+	};
+
+	hwdvfs_cluster1: cluster@1 {
+		reg = <0 0x1>;
+		dcdc-ctrl = <&dcdc_ctrl0>;
+	};
+
+	hwdvfs_dsu: dsu@0 {
+		reg = <0 0x0>;
+		dcdc-ctrl = <&dcdc_ctrl0>;
+	};
+
+	dcdc_ctrl0: dcdc-controller@0 {
+		reg = <0x0 0x0>;
+		volt-via-adi;
+		volt-hold-us = <50>;
+		volt-pause-us = <5>;
+		volt-timeout-us = <800>;
+		volt-stable-us  = <5>;
+		volt-max-step-microvolt = <25000>;
+	};
+
+	dcdc_ctrl1: dcdc-controller@1 {
+		reg = <0x1 0x2>;
+		volt-via-i2c;
+		volt-hold-us = <25>;
+		volt-pause-us = <20>;
+		volt-timeout-us = <800>;
+		volt-stable-us  = <25>;
+		volt-max-step-microvolt = <1200004>;
+	};
 };
 
 &hsphy {

@@ -73,9 +73,10 @@ int sdiohal_tx_thread(void *data)
 			break;
 
 		tm_enter_tx_thread = local_clock();
-		p_data->tm_end_sch = ktime_get_boot_fast_ns();
+		getnstimeofday(&p_data->tm_end_sch);
 		sdiohal_pr_perf("tx sch time:%ld\n",
-				(long)(p_data->tm_end_sch - p_data->tm_begin_sch));
+				(long)(timespec_to_ns(&p_data->tm_end_sch) -
+				timespec_to_ns(&p_data->tm_begin_sch)));
 
 		sdiohal_lock_tx_ws();
 		sdiohal_resume_wait();
@@ -87,8 +88,6 @@ int sdiohal_tx_thread(void *data)
 			getnstimeofday(&tm_begin);
 
 			sdiohal_tx_find_data_list(&data_list);
-			p_data->data_list_tx = &data_list;
-
 			if (p_data->adma_tx_enable) {
 				ret = sdiohal_adma_pt_write(&data_list);
 				if (ret)
@@ -97,7 +96,6 @@ int sdiohal_tx_thread(void *data)
 				sdiohal_tx_list_denq(&data_list);
 			} else
 				sdiohal_tx_data_list_send(&data_list);
-			p_data->data_list_tx = NULL;
 
 			getnstimeofday(&tm_end);
 			time_total_ns += timespec_to_ns(&tm_end) -
@@ -118,40 +116,4 @@ int sdiohal_tx_thread(void *data)
 	}
 
 	return 0;
-}
-
-int sdiohal_remove_datalist_invalid_data(struct mchn_ops_t *ops, struct sdiohal_list_t *data_list)
-{
-	unsigned int type, subtype;
-	struct mbuf_t *mbuf_node, *mbuf_node_next;
-	int inout = 1;
-	int del_node_num = 0;
-	int node_num = data_list->node_num;
-	struct bus_puh_t *puh = NULL;
-
-	sdiohal_channel_to_hwtype(inout, ops->channel, &type, &subtype);
-	mbuf_node = data_list->mbuf_head;
-	mbuf_node_next = mbuf_node;
-	do {
-		puh = (struct bus_puh_t *)mbuf_node_next->buf;
-		if (puh->subtype == subtype) {
-			del_node_num++;
-			if (mbuf_node_next == data_list->mbuf_head) {
-				data_list->mbuf_head = mbuf_node->next;
-				mbuf_node = data_list->mbuf_head;
-				mbuf_node_next = mbuf_node;
-			} else {
-				mbuf_node_next = mbuf_node_next->next;
-				mbuf_node->next = mbuf_node_next;
-			}
-			data_list->node_num--;
-		} else {
-			mbuf_node = mbuf_node_next;
-			mbuf_node_next = mbuf_node_next->next;
-		}
-		node_num--;
-	} while (node_num && mbuf_node_next);
-	data_list->mbuf_tail = mbuf_node;
-
-	return del_node_num;
 }

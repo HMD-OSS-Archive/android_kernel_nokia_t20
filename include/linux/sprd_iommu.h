@@ -26,7 +26,6 @@ struct sprd_iommu_init_data {
 	unsigned long fault_page;
 	unsigned long re_route_page;
 	unsigned int iommu_rev;
-	u32 phys_offset;
 
 	/*add for 9860 interlace ddr*/
 	/*iommu reserved memory of pf page table*/
@@ -55,8 +54,6 @@ enum sprd_iommu_chtype {
 
 enum sprd_iommu_id {
 	SPRD_IOMMU_VSP,
-	SPRD_IOMMU_VSP1,
-	SPRD_IOMMU_VSP2,
 	SPRD_IOMMU_DCAM,
 	SPRD_IOMMU_DCAM1,
 	SPRD_IOMMU_CPP,
@@ -233,10 +230,7 @@ struct sprd_iommu_ops {
 enum IOMMU_ID {
 	/*for sharkl2 iommu*/
 	IOMMU_EX_VSP,
-	IOMMU_EX_VSP1,
-	IOMMU_EX_VSP2,
 	IOMMU_EX_DCAM,
-	IOMMU_EX_DCAM1,
 	IOMMU_EX_CPP,
 	IOMMU_EX_GSP,
 	IOMMU_EX_GSP1,
@@ -315,10 +309,7 @@ enum IOMMU_ID {
 	IOMMU_VAUL6_ISP,
 	IOMMU_VAUL6_FD,
 	IOMMU_VAUL6P_VSP,
-	IOMMU_VAUL6P_VSP1,
-	IOMMU_VAUL6P_VSP2,
 	IOMMU_VAUL6P_DCAM,
-	IOMMU_VAUL6P_DCAM1,
 	IOMMU_VAUL6P_CPP,
 	IOMMU_VAUL6P_GSP,
 	IOMMU_VAUL6P_GSP1,

@@ -637,12 +637,6 @@ int tipc_chan_queue_msg_list(struct tipc_chan *chan,
 	mutex_lock(&chan->lock);
 	switch (chan->state) {
 	case TIPC_CONNECTED:
-		if (list_empty(msg_buf_list)) {
-			err = -EINVAL;
-			pr_err("%s: msg_buf_list is empty (%d)\n",
-			       __func__, err);
-			break;
-		}
 		mb = list_first_entry(msg_buf_list,
 				      struct tipc_msg_buf, node);
 		fill_msg_hdr(mb, chan->local, chan->remote);
@@ -794,8 +788,6 @@ int tipc_chan_shutdown(struct tipc_chan *chan)
 			       __func__, err);
 		}
 	} else {
-		pr_err("%s: not connected. chan->state (%d)\n",
-			       __func__, chan->state);
 		err = -ENOTCONN;
 	}
 	chan->state = TIPC_STALE;
@@ -804,7 +796,6 @@ int tipc_chan_shutdown(struct tipc_chan *chan)
 	if (err) {
 		/* release buffer */
 		tipc_chan_put_txbuf(chan, txbuf);
-		kfree(msg_buf_list);
 	}
 err_out:
 	return err;

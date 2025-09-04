@@ -91,8 +91,8 @@ struct sbuf_ring {
 
 	struct sprd_pms	*tx_pms;
 	struct sprd_pms	*rx_pms;
-	char	tx_pms_name[32];
-	char	rx_pms_name[32];
+	char	tx_pms_name[20];
+	char	rx_pms_name[20];
 
 	bool	need_wake_lock;
 	unsigned int	poll_mask;

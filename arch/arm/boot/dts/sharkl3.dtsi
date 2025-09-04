@@ -8,7 +8,6 @@
 #include <dt-bindings/soc/sprd,sharkl3-regs.h>
 #include <dt-bindings/soc/sprd,sharkl3-mask.h>
 #include <dt-bindings/clock/sprd,sc9863a-clk.h>
-#include <dt-bindings/reset/sprd,sc9863a-reset.h>
 #include <dt-bindings/debug/busmonitor/busmonitor.h>
 #include <dt-bindings/debug/dmc_mpu/sharkl3_dmc_mpu.h>
 
@@ -45,11 +44,11 @@
 			sprd,syscon-aon-apb = <&aon_apb_regs>;
 			sprd,syscon-dsi-apb = <&anlg_phy_g1_regs>;
 			sprd,syscon-pll-apb = <&anlg_phy_g2_regs>;
-			sprd,syscon-pmu-apb = <&pmu_apb_regs>;
 			sprd,ch-name = "TRAINING", "WTL", "MDAR", "TPIU", "DBUS", "WCN";
 			sprd,ch-index = <15 1 0 2 3 4>;
 			sprd,dcfix;
 			sprd,mm;
+			power-domains = <&mm_domain>;
 			status = "disabled";
 		};
 
@@ -196,9 +195,11 @@
 				reg = <0x0 0x100>;
 				interrupts = <GIC_SPI 2 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x21500044>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART0_EB>,
-					<&ap_clk CLK_AP_UART0>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART0_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -208,9 +209,11 @@
 				reg = <0x100000 0x100>;
 				interrupts = <GIC_SPI 3 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x21500048>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART1_EB>,
-					<&ap_clk CLK_AP_UART1>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART1_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -220,9 +223,11 @@
 				reg = <0x200000 0x100>;
 				interrupts = <GIC_SPI 4 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x2150004c>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART2_EB>,
-					<&ap_clk CLK_AP_UART2>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART2_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -232,9 +237,11 @@
 				reg = <0x300000 0x100>;
 				interrupts = <GIC_SPI 5 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x21500050>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART3_EB>,
-					<&ap_clk CLK_AP_UART3>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART3_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -244,9 +251,11 @@
 				reg = <0x400000 0x100>;
 				interrupts = <GIC_SPI 6 IRQ_TYPE_LEVEL_HIGH>;
 				source-base = <0x21500054>;
-				clock-names = "enable", "uart", "source";
-				clocks = <&apapb_gate CLK_UART4_EB>,
-					<&ap_clk CLK_AP_UART4>, <&ext_26m>;
+				clock-frequency = <0>;
+				uart-eb-syscon = <&ap_apb_regs
+						REG_AP_APB_APB_EB
+						MASK_AP_APB_UART4_EB>;
+				clocks = <&ext_26m>;
 				status = "disabled";
 			};
 
@@ -306,7 +315,7 @@
 			};
 
 			spi0: spi@a00000 {
-				compatible = "sprd,sc9863-spi", "sprd,sc9860-spi";
+				compatible = "sprd,sc9863-spi";
 				reg = <0xa00000 0x1000>;
 				interrupts = <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <1>;
@@ -315,7 +324,7 @@
 			};
 
 			spi1: spi@b00000 {
-				compatible = "sprd,sc9863-spi", "sprd,sc9860-spi";
+				compatible = "sprd,sc9863-spi";
 				reg = <0xb00000 0x1000>;
 				interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <1>;
@@ -324,7 +333,7 @@
 			};
 
 			spi2: spi@c00000 {
-				compatible = "sprd,sc9863-spi", "sprd,sc9860-spi";
+				compatible = "sprd,sc9863-spi";
 				reg = <0xc00000 0x1000>;
 				interrupts = <GIC_SPI 9 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <1>;
@@ -347,7 +356,7 @@
 			};
 
 			spi3: spi@1400000 {
-				compatible = "sprd,sc9863-spi", "sprd,sc9860-spi";
+				compatible = "sprd,sc9863-spi";
 				reg = <0x1400000 0x1000>;
 				interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
 				#address-cells = <1>;
@@ -603,6 +612,11 @@
 					bits = <4 4>;
 				};
 
+				dvfs_bin_dsu: dvfs-bin-dsu@a {
+					reg = <0xa 0x4>;
+					bits = <4 4>;
+				};
+
 				wcn_alpha: wcn-alpha@14 {
 					reg = <0x14 0x4>;
 				};
@@ -776,12 +790,22 @@
 				interrupts = <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>;
 			};
 
+			sprd_hwdvfs: hwdvfs@40300000 {
+				compatible = "sprd,sharkl3-hwdvfs";
+				sprd,syscon-enable = <&aon_apb_regs>;
+				sprd,anlg-phy-g4-ctrl = <&anlg_phy_g4_regs>;
+				reg = <0x40300000 0x1000>;
+				interrupts = <GIC_SPI 121 IRQ_TYPE_LEVEL_HIGH>;
+				#address-cells = <2>;
+				#size-cells = <0>;
+			};
+
 			sprd_hardware_cpufreq: hardware-dvfs-platform {
-				compatible = "sprd,cpufreq-v2";
+				compatible = "sprd,hardware-cpufreq";
 			};
 
 			watchdog@40310000 {
-				compatible = "sprd,wdt-r2p0-fiq";
+				compatible = "sprd,wdt-r2p0-fiq-sharkl3";
 				reg = <0x40310000 0x1000>;
 				interrupts = <GIC_SPI 124 IRQ_TYPE_LEVEL_HIGH>;
 				timeout-sec = <30>;
@@ -867,20 +891,6 @@
 				#size-cell = <0>;
 			};
 
-			socid: socid@402e00e0{
-				compatible = "sprd,soc-id";
-				chip_id = <&aon_apb_regs REG_AON_APB_AON_CHIP_ID0
-					MASK_AON_APB_AON_CHIP_ID0>;
-				plat_id = <&aon_apb_regs REG_AON_APB_AON_PLAT_ID0
-					MASK_AON_APB_AON_PLAT_ID0>;
-				implement_id = <&aon_apb_regs REG_AON_APB_AON_IMPL_ID
-					MASK_AON_APB_AON_IMPL_ID>;
-				manufacture_id = <&aon_apb_regs  REG_AON_APB_AON_MFT_ID
-					MASK_AON_APB_AON_MFT_ID>;
-				version_id = <&aon_apb_regs REG_AON_APB_AON_VER_ID
-					MASK_AON_APB_AON_VER_ID>;
-			};
-
 		};
 
 		mm {
@@ -898,15 +908,6 @@
 				core_force_shutdown = <&pmu_apb_regs
 					REG_PMU_APB_PD_GPU_CORE_CFG
 					MASK_PMU_APB_PD_GPU_CORE_FORCE_SHUTDOWN>;
-				gpu_top_state = <&pmu_apb_regs
-					REG_PMU_APB_PWR_STATUS0_DBG
-					MASK_PMU_APB_PD_GPU_TOP_STATE>;
-				gpu_core_state = <&pmu_apb_regs
-					REG_PMU_APB_PWR_STATUS5_DBG
-					MASK_PMU_APB_PD_GPU_CORE_STATE>;
-				clk_gpu_eb = <&aon_apb_regs
-					REG_AON_CLK_TOP_CFG
-					MASK_AON_CLK_GPU_EB>;
 				core_auto_shutdown = <&pmu_apb_regs
 					REG_PMU_APB_PD_GPU_CORE_CFG
 					MASK_PMU_APB_PD_GPU_CORE_AUTO_SHUTDOWN_EN>;
@@ -1310,22 +1311,6 @@
 			#size-cells = <1>;
 			ranges;
 
-			ptm_trace: ptm@30010000 {
-				compatible = "sprd,sharkl3-ptm";
-				reg = <0x30010000 0x10000>,
-					<0x10001000 0x1000>,
-					<0x10003000 0x1000>,
-					<0x10004000 0x1000>;
-				interrupts = <GIC_SPI 86 IRQ_TYPE_LEVEL_HIGH>;
-				clock-names = "clk_cs", "cs_src";
-				clocks = <&aon_clk CLK_CSSYS>, <&pll CLK_TWPLL_153M6>;
-				sprd,funnel-port = <2>;
-				sprd,ddr-chn = <8>;
-				sprd,chn-name = "MM", "GPU", "DPU",
-					"CPU", "AP/PUBCP", "WTLCP",
-					"WCN/AON/ETR", "VSP";
-			};
-
 			dmc_mpu: dmc-mpu@300e0000 {
 				compatible = "sprd,sharkl3-dmc-mpu";
 				reg = <0x300e0000 0x10000>;
@@ -1387,8 +1372,7 @@
 
 			dmc_controller: dmc-controller@300001a8 {
 				compatible = "sprd,pub-dmc-original";
-				reg = <0x300001a8 0x100>,
-					<0x30000000 0x12c>;
+				reg = <0x300001a8 0x100>;
 			};
 		};
 	};

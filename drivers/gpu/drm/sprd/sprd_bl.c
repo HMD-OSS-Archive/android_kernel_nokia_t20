@@ -16,7 +16,6 @@
 
 #define U_MAX_LEVEL	255
 #define U_MIN_LEVEL	0
-
 void sprd_backlight_normalize_map(struct backlight_device *bd, u16 *level)
 {
 	struct sprd_backlight *bl = bl_get_data(bd);
@@ -73,13 +72,10 @@ static int sprd_pwm_backlight_update(struct backlight_device *bd)
 
 	pwm_get_state(bl->pwm, &state);
 	if (level > 0) {
-		if (bl->cabc_en) {
-			if (bl->cabc_refer_level == 0)
-				duty_cycle = level;
-			else
-				duty_cycle = DIV_ROUND_CLOSEST_ULL(bl->cabc_level *
-					level, bl->cabc_refer_level);
-		} else
+		if (bl->cabc_en)
+			duty_cycle = DIV_ROUND_CLOSEST_ULL(bl->cabc_level *
+				level, bl->cabc_refer_level);
+		else
 			duty_cycle = level;
 
 		pr_debug("pwm brightness level: %llu\n", duty_cycle);
@@ -102,7 +98,32 @@ static int sprd_pwm_backlight_update(struct backlight_device *bd)
 static const struct backlight_ops sprd_backlight_ops = {
 	.update_status = sprd_pwm_backlight_update,
 };
+static int lcd_name_id;
+// lcd_name cmdline
+static void lcd_name_cmdline(void)
+{
+	const char *cmd_line, *lcd_name;
+	struct device_node *cmdline_node;
+	int rc;
 
+	cmdline_node = of_find_node_by_path("/chosen");
+	rc = of_property_read_string(cmdline_node, "bootargs", &cmd_line);
+	if (!rc) {
+		lcd_name = strstr(cmd_line, "lcd_nt36523_truly_mipi_fhd");
+		//printk("sqw %s\n",lcd_name);
+		if(lcd_name == NULL)   //lcd is not lianchuang
+		{
+			lcd_name_id = 1;
+			printk("lcd is dijing\n");
+		}else
+		{
+			lcd_name_id = 0;
+			printk("lcd is lianchuang\n");
+		}	
+	} else {
+		printk("can't not parse bootargs property\n");
+	}	
+}
 static int sprd_backlight_parse_dt(struct device *dev,
 			struct sprd_backlight *bl)
 {
@@ -115,8 +136,17 @@ static int sprd_backlight_parse_dt(struct device *dev,
 	if (!node)
 		return -ENODEV;
 
+	lcd_name_cmdline();
+	if(lcd_name_id == 1)
+	{
+		printk("brightness-levels-djn\n");
+		prop = of_find_property(node, "brightness-levels-djn", &length);
+	}
+	else{
 	/* determine the number of brightness levels */
+	printk("brightness-levels\n");
 	prop = of_find_property(node, "brightness-levels", &length);
+	}
 	if (prop) {
 		bl->num = length / sizeof(u32);
 
@@ -127,10 +157,20 @@ static int sprd_backlight_parse_dt(struct device *dev,
 			bl->levels = devm_kzalloc(dev, size, GFP_KERNEL);
 			if (!bl->levels)
 				return -ENOMEM;
-
+		if(lcd_name_id == 1)
+		{
+			printk("111brightness-levels-djn\n");
 			ret = of_property_read_u32_array(node,
+							"brightness-levels-djn",
+							bl->levels, bl->num);
+		}
+		else{
+		/* determine the number of brightness levels */
+		printk("111brightness-levels\n");
+					ret = of_property_read_u32_array(node,
 							"brightness-levels",
 							bl->levels, bl->num);
+		}
 			if (ret < 0)
 				return ret;
 		}
